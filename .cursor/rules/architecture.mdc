@@ -1,0 +1,67 @@
+---
+description: Architecture principles and module isolation rules for radio-shuffle
+alwaysApply: true
+---
+
+# Architecture
+
+## Layer Responsibilities
+
+```
+handler → service → repository → SQLC Queries → DB
+```
+
+**Handler** (`internal/module/{name}/handler.go`)
+- Parse and validate HTTP input
+- Call the service layer
+- Map service errors to HTTP responses using response helpers
+- No business logic; no direct DB access
+
+**Service** (`internal/module/{name}/service.go`)
+- Own all business rules and domain validation
+- Orchestrate repository calls
+- Define sentinel errors (`ErrNotFound`, `ErrConflict`, etc.)
+- No HTTP concepts; no direct DB access
+
+**Repository** (`internal/module/{name}/repository.go` + `repository_sqlc.go`)
+- Translate between domain types and SQLC-generated types
+- Wrap `*dbsqlc.Queries`; no business logic
+- Define the `Repository` interface in this file — consumed by the service
+
+**Platform** (`internal/platform/`)
+- Shared infrastructure only: DB pool, JWT middleware, config, response helpers
+- Modules import from platform; platform never imports from modules
+
+## Module Isolation
+
+Each module in `internal/module/{name}/` is fully self-contained:
+
+```
+handler.go          ← HTTP layer
+service.go          ← Business logic + Service interface
+repository.go       ← Repository interface
+repository_sqlc.go  ← SQLC implementation
+dto.go              ← Request/Response structs
+module.go           ← NewModule() wiring + RegisterRoutes
+```
+
+**Isolation rules:**
+- Modules never import each other's packages
+- Cross-module dependencies are expressed as interfaces defined in the consuming module
+- `cmd/server/main.go` is the only place modules are wired together and routes are registered
+- If two modules need to share data, define an interface in the consumer; inject via `NewModule()`
+
+## SQL and SQLC
+
+- All SQL lives in `db/query/{module}.sql` — one file per module
+- Write SQL first, run `sqlc generate`, then implement the repository
+- Never write raw SQL strings in Go code
+- Never edit files in `pkg/dbsqlc/` — they are generated output
+
+## Non-Negotiables
+
+- No business logic in handlers
+- No DB access outside the repository layer
+- No direct imports between modules
+- No inline SQL in Go files
+- No editing generated SQLC files

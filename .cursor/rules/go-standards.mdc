@@ -1,0 +1,82 @@
+---
+description: General Go coding standards for radio-shuffle
+alwaysApply: true
+---
+
+# Go Standards
+
+See **`architecture.mdc`** for project layout, module boundaries, and SQLC workflow.
+
+## Error Handling
+
+- Always check errors — never discard them with `_`
+- Return errors to callers; wrap with `fmt.Errorf("...: %w", err)` so callers can unwrap
+- Define sentinel errors for domain cases the service exposes: `var ErrNotFound = errors.New("not found")`
+
+```go
+// ✅ GOOD
+station, err := repo.GetByID(ctx, id)
+if err != nil {
+    return nil, fmt.Errorf("get station %d: %w", id, err)
+}
+
+// ❌ BAD
+station, _ := repo.GetByID(ctx, id)
+```
+
+## Naming
+
+- Unexported identifiers: `camelCase`
+- Exported identifiers: `PascalCase`
+- Short locals in tight scopes; longer names across layers
+- Single-method interfaces: `Reader`, `Closer`, `-er` suffix where idiomatic
+- Avoid stuttering (e.g. `station.Handler` not `station.StationHandler`)
+
+## Function Length
+
+- Aim for ~30 lines per function — extract helpers when a function mixes concerns or branches deeply
+- One clear responsibility per function
+
+## Imports
+
+- Order: standard library → third-party → local, blank lines between groups
+- Use `goimports` (or `gofumpt` where configured)
+
+## Code Cleanliness
+
+- No commented-out code in commits
+- No `fmt.Println` in production paths — use `log/slog`, `zerolog`, or injected loggers
+- Drop unused imports and dead code proactively
+
+## Interfaces
+
+- Declare interfaces next to their **consumers**, not implementations
+- Keep interfaces small — often one to three methods
+- Typical place for a repository port: same package as `Service`
+
+```go
+// ✅ GOOD — small interface colocated with the service
+type Repository interface {
+    GetByID(ctx context.Context, id int64) (*StationRow, error)
+}
+
+// ❌ BAD — wide interface exported from a distant package
+```
+
+## Struct Tags
+
+- `json:"field_name"` for JSON
+- `binding:"required"` etc. on request DTOs used with Gin
+- `db:""` only where you manually scan columns; SQLC-generated types normally cover this
+
+## SQL / SQLC
+
+- All SQL stays in `db/query/*.sql` (typically one file per module), with `-- name:` annotations
+- Migrations: numbered `.up.sql` / `.down.sql` under `db/migration/`
+- Reflect schema shape in `db/schema.sql` for SQLC
+- No inline SQL in Go — extend the `.sql`, run `sqlc generate`
+
+## Context
+
+- First parameter: `ctx context.Context` on service and repository methods
+- Never store `Context` in long-lived structs

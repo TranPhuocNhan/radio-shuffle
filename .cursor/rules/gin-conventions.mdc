@@ -1,0 +1,38 @@
+---
+description: Gin HTTP routing and handler conventions for radio-shuffle
+alwaysApply: true
+---
+
+# Gin Conventions
+
+## Routing
+
+- Group endpoints by resource with `gin.RouterGroup` under a stable prefix (`/stations`, `/users`, …)
+- Prefer `RegisterRoutes(rg *gin.RouterGroup)` on the handler struct so routing stays colocated with the handler
+- Register groups from `cmd/server/main.go`; avoid ad hoc `r.GET` at the package level
+
+## Request Binding
+
+- Use `c.ShouldBindJSON(&req)` for JSON bodies — do not use `c.BindJSON` (it aborts the context on error before you handle the response uniformly)
+- Use `c.Param`, `c.Query`, `c.DefaultQuery`, and `binding` tags on DTO structs for paths and query strings
+- On bind failure (JSON or validation), return immediately using platform response helpers (`response.BadRequest` or equivalent); do not propagate invalid structs into services
+
+```go
+var req dto.CreateStationRequest
+if err := c.ShouldBindJSON(&req); err != nil {
+    response.BadRequest(c, err.Error())
+    return
+}
+```
+
+## Handler Methods
+
+- One exported method per HTTP endpoint; keep each method thin: parse/bind → call service with `c.Request.Context()` → map outcome to helpers
+- Return early after every failure path — no nesting past what keeps the method readable
+- Prefer `errors.Is` against service sentinel errors when choosing which helper maps to HTTP (details live under `api-conventions.mdc`)
+
+## Responses (Non-Negotiable)
+
+Handlers **must** use the helpers under `internal/platform/response/` and the envelope defined in **`api-conventions.mdc`**.
+
+Handlers **must not** call **`c.JSON`**, **`c.String`**, **`c.HTML`**, or **`gin.H{...}`** for API responses — success or error. Plaintext or non-JSON routes are exempt only if documented as such.

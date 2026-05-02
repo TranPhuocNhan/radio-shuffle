@@ -1,0 +1,84 @@
+---
+description: API response contract, error model, and pagination design for radio-shuffle
+alwaysApply: true
+---
+
+# API Conventions
+
+## Response Contract
+
+Every endpoint returns a consistent JSON envelope:
+
+```json
+// Success
+{ "data": { ... } }
+{ "data": [ ... ] }
+
+// Paginated list
+{
+  "data": [ ... ],
+  "meta": {
+    "total": 100,
+    "limit": 20,
+    "offset": 0
+  }
+}
+
+// Error
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "station not found"
+  }
+}
+```
+
+**Rules:**
+- Success responses wrap the payload in `data`
+- Error responses use an `error` object with `code` (machine-readable) and `message` (human-readable)
+- Never mix success and error fields in the same response
+- Never return a 200 status with an error body
+
+## Error Codes
+
+Use uppercase snake_case codes that the frontend can branch on:
+
+| Code | HTTP Status | When to Use |
+|------|-------------|-------------|
+| `BAD_REQUEST` | 400 | Validation failure, malformed input |
+| `UNAUTHORIZED` | 401 | Missing or invalid JWT |
+| `FORBIDDEN` | 403 | Authenticated but not allowed |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `CONFLICT` | 409 | Duplicate or constraint violation |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+## Response Helpers
+
+All handlers must use helpers from `internal/platform/response/` instead of calling `c.JSON` with raw maps:
+
+- `response.OK(c, data)` → 200 with `{"data": data}`
+- `response.Created(c, data)` → 201 with `{"data": data}`
+- `response.NoContent(c)` → 204 with empty body
+- `response.Paginated(c, data, total, limit, offset)` → 200 with `{"data": [...], "meta": {...}}`
+- `response.Error(c, status, code, message)` → error envelope
+- `response.NotFound(c, message)` → shorthand for 404
+- `response.BadRequest(c, message)` → shorthand for 400
+
+**Handlers must never call `c.JSON(...)` directly — always use a response helper.**
+
+## Pagination
+
+List endpoints that may return large result sets must support pagination:
+
+- Query params: `limit` (default 20, max 100) and `offset` (default 0)
+- Always return the `meta` object alongside `data` for paginated endpoints
+- Endpoints that always return small bounded sets (e.g. genres list) are exempt
+
+## Sentinel Errors
+
+Service-layer sentinel errors map to error codes in handlers:
+
+- `service.ErrNotFound` → `NOT_FOUND` / 404
+- `service.ErrConflict` → `CONFLICT` / 409
+- `service.ErrForbidden` → `FORBIDDEN` / 403
+- Any other error → `INTERNAL_ERROR` / 500 (do not expose internal details)

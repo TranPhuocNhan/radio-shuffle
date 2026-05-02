@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "osascript -e 'display notification \"Cursor/Claude Code needs you\" with title \"Agent done\" sound name \"Glass\"'",
+        "timeout": 5
+      }
+    ]
+  }
+}
