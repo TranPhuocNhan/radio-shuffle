@@ -7,8 +7,6 @@ package dbsqlc
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateUser = `-- name: CreateUser :one
@@ -33,41 +31,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (Users, 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const DeleteAllRefreshTokensForUser = `-- name: DeleteAllRefreshTokensForUser :exec
-DELETE FROM refresh_tokens WHERE user_id = $1
-`
-
-func (q *Queries) DeleteAllRefreshTokensForUser(ctx context.Context, userID int64) error {
-	_, err := q.db.Exec(ctx, DeleteAllRefreshTokensForUser, userID)
-	return err
-}
-
-const DeleteRefreshTokenByHash = `-- name: DeleteRefreshTokenByHash :exec
-DELETE FROM refresh_tokens WHERE token_hash = $1
-`
-
-func (q *Queries) DeleteRefreshTokenByHash(ctx context.Context, tokenHash []byte) error {
-	_, err := q.db.Exec(ctx, DeleteRefreshTokenByHash, tokenHash)
-	return err
-}
-
-const GetRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
-SELECT id, user_id, token_hash, expires_at, created_at FROM refresh_tokens WHERE token_hash = $1
-`
-
-func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (RefreshTokens, error) {
-	row := q.db.QueryRow(ctx, GetRefreshTokenByHash, tokenHash)
-	var i RefreshTokens
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TokenHash,
-		&i.ExpiresAt,
-		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -104,31 +67,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (Users, error) {
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const InsertRefreshToken = `-- name: InsertRefreshToken :one
-INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, token_hash, expires_at, created_at
-`
-
-type InsertRefreshTokenParams struct {
-	UserID    int64              `json:"user_id"`
-	TokenHash []byte             `json:"token_hash"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-}
-
-func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (RefreshTokens, error) {
-	row := q.db.QueryRow(ctx, InsertRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
-	var i RefreshTokens
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TokenHash,
-		&i.ExpiresAt,
-		&i.CreatedAt,
 	)
 	return i, err
 }

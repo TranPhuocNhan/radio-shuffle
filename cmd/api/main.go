@@ -8,6 +8,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/auth"
+	authadapters "github.com/tranphuocnhan/radio-shuffle/internal/module/auth/adapters"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/playlist"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/station"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/stream"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/user"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/database"
 	plhealth "github.com/tranphuocnhan/radio-shuffle/internal/platform/health"
@@ -51,7 +58,20 @@ func main() {
 	r.GET("/ready", healthHandlers.Ready)
 
 	api := r.Group("/api/v1")
-	router.Register(api, &cfg, pool)
+
+	userRepo := user.NewRepository(pool)
+	authUsers := authadapters.NewAuthUserAdapter(userRepo)
+	authTokens := auth.NewTokenRepository(pool)
+
+	router.Register(
+		api,
+		router.RouteRegistrarFunc(auth.NewModule(&cfg, authUsers, authUsers, authTokens, nil).RegisterRoutes),
+		router.RouteRegistrarFunc(user.RegisterRoutes),
+		router.RouteRegistrarFunc(track.RegisterRoutes),
+		router.RouteRegistrarFunc(playlist.RegisterRoutes),
+		router.RouteRegistrarFunc(stream.RegisterRoutes),
+		router.RouteRegistrarFunc(station.NewModule(pool).RegisterRoutes),
+	)
 
 	srv := router.NewServer(&cfg, r)
 

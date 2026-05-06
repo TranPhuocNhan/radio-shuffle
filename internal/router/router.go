@@ -5,17 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/auth"
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/playlist"
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/station"
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/stream"
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
-	"github.com/tranphuocnhan/radio-shuffle/internal/module/user"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Server is a thin wrapper so main can call Shutdown with a context.
@@ -46,59 +39,27 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.inner.Shutdown(shutdownDeadline)
 }
 
-func Register(api *gin.RouterGroup, cfg *config.Config, pool *pgxpool.Pool) {
-	attachAPIRoutes(api)
-	registerModules(api, cfg, pool)
+// RouteRegistrar mounts routes under the api group.
+type RouteRegistrar interface {
+	RegisterRoutes(*gin.RouterGroup)
 }
 
-func registerModules(api *gin.RouterGroup, cfg *config.Config, pool *pgxpool.Pool) {
-	userRepo := user.NewRepository(pool)
-	authUsers := authUserAdapter{repo: userRepo}
-	authTokens := auth.NewTokenRepository(pool)
-	auth.NewModule(cfg, authUsers, authUsers, authTokens, nil).RegisterRoutes(api)
+// RouteRegistrarFunc adapts a function to a RouteRegistrar.
+type RouteRegistrarFunc func(*gin.RouterGroup)
 
-	user.RegisterRoutes(api)
-	track.RegisterRoutes(api)
-	playlist.RegisterRoutes(api)
-	stream.RegisterRoutes(api)
-	station.NewModule(pool).RegisterRoutes(api)
+func (f RouteRegistrarFunc) RegisterRoutes(api *gin.RouterGroup) {
+	f(api)
+}
+
+func Register(api *gin.RouterGroup, registrars ...RouteRegistrar) {
+	attachAPIRoutes(api)
+	for _, registrar := range registrars {
+		registrar.RegisterRoutes(api)
+	}
 }
 
 func attachAPIRoutes(api *gin.RouterGroup) {
 	api.GET("/ping", func(c *gin.Context) {
 		response.OK(c, http.StatusOK, map[string]any{"service": "radio-shuffle"})
 	})
-}
-
-// authUserAdapter maps user.Repository to auth.UserReader/UserWriter.
-type authUserAdapter struct {
-	repo user.Repository
-}
-
-func (a authUserAdapter) GetByEmail(ctx context.Context, email string) (auth.User, error) {
-	row, err := a.repo.GetByEmail(ctx, email)
-	if err != nil {
-		return auth.User{}, err
-	}
-	return auth.User{ID: row.ID, Email: row.Email, PasswordHash: row.PasswordHash, Role: row.Role}, nil
-}
-
-func (a authUserAdapter) GetByID(ctx context.Context, id int64) (auth.User, error) {
-	row, err := a.repo.GetByID(ctx, id)
-	if err != nil {
-		return auth.User{}, err
-	}
-	return auth.User{ID: row.ID, Email: row.Email, PasswordHash: row.PasswordHash, Role: row.Role}, nil
-}
-
-func (a authUserAdapter) Create(ctx context.Context, in auth.CreateUserInput) (auth.User, error) {
-	row, err := a.repo.Create(ctx, user.CreateUserInput{
-		Email:        in.Email,
-		PasswordHash: in.PasswordHash,
-		Role:         in.Role,
-	})
-	if err != nil {
-		return auth.User{}, err
-	}
-	return auth.User{ID: row.ID, Email: row.Email, PasswordHash: row.PasswordHash, Role: row.Role}, nil
 }
