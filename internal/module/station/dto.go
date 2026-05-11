@@ -39,7 +39,32 @@ type StationResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-func toStationResponse(r StationRow) StationResponse {
+func toCreateStationInput(req CreateStationRequest) CreateStationInput {
+	return CreateStationInput{
+		Name:          req.Name,
+		Genre:         req.Genre,
+		Description:   req.Description,
+		StreamUrl:     req.StreamUrl,
+		CoverImageUrl: req.CoverImageUrl,
+		IsPublic:      req.IsPublic,
+		OwnerID:       req.OwnerID,
+	}
+}
+
+func toUpdateStationInput(id int64, req UpdateStationRequest) UpdateStationInput {
+	return UpdateStationInput{
+		ID:            id,
+		Name:          req.Name,
+		Genre:         req.Genre,
+		Description:   req.Description,
+		StreamUrl:     req.StreamUrl,
+		CoverImageUrl: req.CoverImageUrl,
+		IsPublic:      req.IsPublic,
+		OwnerID:       req.OwnerID,
+	}
+}
+
+func toStationResponse(r Station) StationResponse {
 	return StationResponse{
 		ID:            r.ID,
 		Name:          r.Name,

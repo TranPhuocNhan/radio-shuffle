@@ -17,10 +17,10 @@ const (
 
 // Service defines the station business operations.
 type Service interface {
-	Create(ctx context.Context, params CreateStationInput) (StationRow, error)
-	GetByID(ctx context.Context, id int64) (StationResponse, error)
-	List(ctx context.Context, limit, offset int64) ([]StationResponse, int64, error)
-	Update(ctx context.Context, id int64, req UpdateStationRequest) (StationResponse, error)
+	Create(ctx context.Context, params CreateStationInput) (Station, error)
+	GetByID(ctx context.Context, id int64) (Station, error)
+	List(ctx context.Context, filter ListStationsInput) ([]Station, int64, error)
+	Update(ctx context.Context, input UpdateStationInput) (Station, error)
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -35,6 +35,24 @@ type CreateStationInput struct {
 	OwnerID       *int64
 }
 
+// UpdateStationInput is the service-layer input for updating a station.
+type UpdateStationInput struct {
+	ID            int64
+	Name          *string
+	Genre         *string
+	Description   *string
+	StreamUrl     *string
+	CoverImageUrl *string
+	IsPublic      *bool
+	OwnerID       *int64
+}
+
+// ListStationsInput holds pagination data for listing stations.
+type ListStationsInput struct {
+	Limit  int64
+	Offset int64
+}
+
 type service struct {
 	repo Repository
 }
@@ -44,7 +62,7 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) Create(ctx context.Context, params CreateStationInput) (StationRow, error) {
+func (s *service) Create(ctx context.Context, params CreateStationInput) (Station, error) {
 	isPublic := true
 	if params.IsPublic != nil {
 		isPublic = *params.IsPublic
@@ -59,48 +77,44 @@ func (s *service) Create(ctx context.Context, params CreateStationInput) (Statio
 		OwnerID:       params.OwnerID,
 	})
 	if err != nil {
-		return StationRow{}, err
+		return Station{}, err
 	}
 	return row, nil
 }
 
-func (s *service) GetByID(ctx context.Context, id int64) (StationResponse, error) {
+func (s *service) GetByID(ctx context.Context, id int64) (Station, error) {
 	row, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return StationResponse{}, ErrNotFound
+			return Station{}, ErrNotFound
 		}
-		return StationResponse{}, err
+		return Station{}, err
 	}
-	return toStationResponse(row), nil
+	return row, nil
 }
 
-func (s *service) List(ctx context.Context, limit, offset int64) ([]StationResponse, int64, error) {
+func (s *service) List(ctx context.Context, filter ListStationsInput) ([]Station, int64, error) {
 	total, err := s.repo.Count(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := s.repo.List(ctx, limit, offset)
+	rows, err := s.repo.List(ctx, filter.Limit, filter.Offset)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]StationResponse, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, toStationResponse(r))
-	}
-	return out, total, nil
+	return rows, total, nil
 }
 
-func (s *service) Update(ctx context.Context, id int64, req UpdateStationRequest) (StationResponse, error) {
-	prev, err := s.repo.GetByID(ctx, id)
+func (s *service) Update(ctx context.Context, input UpdateStationInput) (Station, error) {
+	prev, err := s.repo.GetByID(ctx, input.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return StationResponse{}, ErrNotFound
+			return Station{}, ErrNotFound
 		}
-		return StationResponse{}, err
+		return Station{}, err
 	}
 	merged := UpdateInput{
-		ID:            id,
+		ID:            input.ID,
 		Name:          prev.Name,
 		Genre:         prev.Genre,
 		Description:   prev.Description,
@@ -109,35 +123,35 @@ func (s *service) Update(ctx context.Context, id int64, req UpdateStationRequest
 		IsPublic:      prev.IsPublic,
 		OwnerID:       prev.OwnerID,
 	}
-	if req.Name != nil {
-		merged.Name = *req.Name
+	if input.Name != nil {
+		merged.Name = *input.Name
 	}
-	if req.Genre != nil {
-		merged.Genre = *req.Genre
+	if input.Genre != nil {
+		merged.Genre = *input.Genre
 	}
-	if req.Description != nil {
-		merged.Description = req.Description
+	if input.Description != nil {
+		merged.Description = input.Description
 	}
-	if req.StreamUrl != nil {
-		merged.StreamUrl = *req.StreamUrl
+	if input.StreamUrl != nil {
+		merged.StreamUrl = *input.StreamUrl
 	}
-	if req.CoverImageUrl != nil {
-		merged.CoverImageUrl = req.CoverImageUrl
+	if input.CoverImageUrl != nil {
+		merged.CoverImageUrl = input.CoverImageUrl
 	}
-	if req.IsPublic != nil {
-		merged.IsPublic = *req.IsPublic
+	if input.IsPublic != nil {
+		merged.IsPublic = *input.IsPublic
 	}
-	if req.OwnerID != nil {
-		merged.OwnerID = req.OwnerID
+	if input.OwnerID != nil {
+		merged.OwnerID = input.OwnerID
 	}
 	row, err := s.repo.Update(ctx, merged)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return StationResponse{}, ErrNotFound
+			return Station{}, ErrNotFound
 		}
-		return StationResponse{}, err
+		return Station{}, err
 	}
-	return toStationResponse(row), nil
+	return row, nil
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {

@@ -67,7 +67,7 @@ func main() {
 		api,
 		router.RouteRegistrarFunc(auth.NewModule(&cfg, authUsers, authUsers, authTokens, nil).RegisterRoutes),
 		router.RouteRegistrarFunc(user.RegisterRoutes),
-		router.RouteRegistrarFunc(track.RegisterRoutes),
+		router.RouteRegistrarFunc(track.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
 		router.RouteRegistrarFunc(playlist.RegisterRoutes),
 		router.RouteRegistrarFunc(stream.RegisterRoutes),
 		router.RouteRegistrarFunc(station.NewModule(pool).RegisterRoutes),

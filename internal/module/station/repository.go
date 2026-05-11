@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// StationRow is the domain representation of a station row from persistence.
-type StationRow struct {
+// Station is the domain representation of a station.
+type Station struct {
 	ID            int64
 	Name          string
 	Genre         string
@@ -44,10 +44,10 @@ type UpdateInput struct {
 
 // Repository loads and mutates stations in the database.
 type Repository interface {
-	Create(ctx context.Context, in CreateInput) (StationRow, error)
-	GetByID(ctx context.Context, id int64) (StationRow, error)
-	List(ctx context.Context, limit, offset int64) ([]StationRow, error)
+	Create(ctx context.Context, in CreateInput) (Station, error)
+	GetByID(ctx context.Context, id int64) (Station, error)
+	List(ctx context.Context, limit, offset int64) ([]Station, error)
 	Count(ctx context.Context) (int64, error)
-	Update(ctx context.Context, in UpdateInput) (StationRow, error)
+	Update(ctx context.Context, in UpdateInput) (Station, error)
 	Delete(ctx context.Context, id int64) error
 }

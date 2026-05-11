@@ -1,4 +1,4 @@
-package station
+package track
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Handler exposes station HTTP endpoints.
+// Handler exposes track HTTP endpoints.
 type Handler struct {
 	svc Service
 }
@@ -21,20 +21,36 @@ func NewHandler(svc Service) *Handler {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	var req CreateStationRequest
+	stationID, err := parseStationIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "invalid station_id")
+		return
+	}
+	var req CreateTrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	station, err := h.svc.Create(c.Request.Context(), toCreateStationInput(req))
+	row, err := h.svc.Create(c.Request.Context(), CreateTrackInput{
+		StationID:       stationID,
+		Title:           req.Title,
+		Artist:          req.Artist,
+		AudioUrl:        req.AudioUrl,
+		DurationSeconds: req.DurationSeconds,
+	})
 	if err != nil {
 		response.Internal(c, err)
 		return
 	}
-	response.OK(c, http.StatusCreated, toStationResponse(station))
+	response.OK(c, http.StatusCreated, toTrackResponse(row))
 }
 
 func (h *Handler) GetByID(c *gin.Context) {
+	_, err := parseStationIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "invalid station_id")
+		return
+	}
 	id, err := parseIDParam(c)
 	if err != nil {
 		response.BadRequest(c, "invalid id")
@@ -43,16 +59,21 @@ func (h *Handler) GetByID(c *gin.Context) {
 	out, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
+			response.NotFound(c, "track not found")
 			return
 		}
 		response.Internal(c, err)
 		return
 	}
-	response.OK(c, http.StatusOK, toStationResponse(out))
+	response.OK(c, http.StatusOK, toTrackResponse(out))
 }
 
 func (h *Handler) List(c *gin.Context) {
+	stationID, err := parseStationIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "invalid station_id")
+		return
+	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
 		response.BadRequest(c, "invalid limit")
@@ -64,49 +85,61 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	limit, offset = normalizeListParams(limit, offset)
-	items, total, err := h.svc.List(c.Request.Context(), ListStationsInput{
-		Limit:  limit,
-		Offset: offset,
-	})
+	tracks, total, err := h.svc.List(c.Request.Context(), stationID, limit, offset)
 	if err != nil {
 		response.Internal(c, err)
 		return
 	}
-	responses := make([]StationResponse, 0, len(items))
-	for _, station := range items {
-		responses = append(responses, toStationResponse(station))
+	items := make([]TrackResponse, 0, len(tracks))
+	for _, t := range tracks {
+		items = append(items, toTrackResponse(t))
 	}
 	page := 1
 	if limit > 0 {
 		page = int(offset/limit) + 1
 	}
-	response.Paginated(c, http.StatusOK, responses, page, int(limit), total)
+	response.Paginated(c, http.StatusOK, items, page, int(limit), total)
 }
 
 func (h *Handler) Update(c *gin.Context) {
+	stationID, err := parseStationIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "invalid station_id")
+		return
+	}
 	id, err := parseIDParam(c)
 	if err != nil {
 		response.BadRequest(c, "invalid id")
 		return
 	}
-	var req UpdateStationRequest
+	var req UpdateTrackRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	out, err := h.svc.Update(c.Request.Context(), toUpdateStationInput(id, req))
+	out, err := h.svc.Update(c.Request.Context(), id, stationID, UpdateTrackRequest{
+		Title:           req.Title,
+		Artist:          req.Artist,
+		AudioUrl:        req.AudioUrl,
+		DurationSeconds: req.DurationSeconds,
+	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
+			response.NotFound(c, "track not found")
 			return
 		}
 		response.Internal(c, err)
 		return
 	}
-	response.OK(c, http.StatusOK, toStationResponse(out))
+	response.OK(c, http.StatusOK, toTrackResponse(out))
 }
 
 func (h *Handler) Delete(c *gin.Context) {
+	_, err := parseStationIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "invalid station_id")
+		return
+	}
 	id, err := parseIDParam(c)
 	if err != nil {
 		response.BadRequest(c, "invalid id")
@@ -114,13 +147,17 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
+			response.NotFound(c, "track not found")
 			return
 		}
 		response.Internal(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func parseStationIDParam(c *gin.Context) (int64, error) {
+	return strconv.ParseInt(c.Param("station_id"), 10, 64)
 }
 
 func parseIDParam(c *gin.Context) (int64, error) {

@@ -8,7 +8,7 @@
 | `station` | Complete | Full CRUD — reference implementation for new modules |
 | `user` | Repository-only | `Repository` interface + SQLC impl; no handler/service yet |
 | `syncer` | Complete | Background ingestion from Radio Browser API; no HTTP routes |
-| `track` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
+| `track` | Complete | Full CRUD scoped to station — `POST/PATCH/DELETE` require auth |
 | `playlist` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
 | `stream` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
 
@@ -90,7 +90,24 @@ Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
 - Exposes `Service.Sync(ctx) (SyncResult, error)` — called directly from `cmd/syncer/main.go`
 - No HTTP routes
 
-### `track`, `playlist`, `stream`
+### `track`
+
+Full CRUD for tracks belonging to a station.
+
+- Tracks are always scoped to a `station_id` (FK `ON DELETE CASCADE`)
+- Routes are nested under `/stations/:station_id/tracks`
+- `GET` endpoints are public; `POST`, `PATCH`, `DELETE` require a valid JWT
+- Sentinel errors: `ErrNotFound`
+- List endpoints use `limit`/`offset` pagination (default 20, max 100)
+- `PATCH` uses read-then-merge strategy in the service layer
+- Routes:
+  - `GET  /stations/:station_id/tracks`
+  - `GET  /stations/:station_id/tracks/:id`
+  - `POST /stations/:station_id/tracks` *(auth required)*
+  - `PATCH /stations/:station_id/tracks/:id` *(auth required)*
+  - `DELETE /stations/:station_id/tracks/:id` *(auth required)*
+
+### `playlist`, `stream`
 
 Currently stubs — `RegisterRoutes` is a no-op. Schema, migrations, and SQLC queries exist.
-Implement following `station` as the reference.
+Implement following `station` and `track` as reference implementations.

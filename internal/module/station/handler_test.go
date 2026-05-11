@@ -15,24 +15,24 @@ import (
 // fakeRepo is a minimal in-memory substitute for Repository in handler tests.
 type fakeRepo struct{}
 
-func (fakeRepo) Create(context.Context, CreateInput) (StationRow, error) {
-	return StationRow{}, errors.New("unexpected Create")
+func (fakeRepo) Create(context.Context, CreateInput) (Station, error) {
+	return Station{}, errors.New("unexpected Create")
 }
 
-func (fakeRepo) GetByID(context.Context, int64) (StationRow, error) {
-	return StationRow{}, pgx.ErrNoRows
+func (fakeRepo) GetByID(context.Context, int64) (Station, error) {
+	return Station{}, pgx.ErrNoRows
 }
 
-func (fakeRepo) List(context.Context, int64, int64) ([]StationRow, error) {
-	return []StationRow{}, nil
+func (fakeRepo) List(context.Context, int64, int64) ([]Station, error) {
+	return []Station{}, nil
 }
 
 func (fakeRepo) Count(context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (fakeRepo) Update(context.Context, UpdateInput) (StationRow, error) {
-	return StationRow{}, errors.New("unexpected Update")
+func (fakeRepo) Update(context.Context, UpdateInput) (Station, error) {
+	return Station{}, errors.New("unexpected Update")
 }
 
 func (fakeRepo) Delete(context.Context, int64) error {
