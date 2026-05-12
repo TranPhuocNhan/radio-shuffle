@@ -48,7 +48,7 @@ func (f *fakeService) List(_ context.Context, _ int64, _ int64, _ int64) ([]Trac
 	return out, int64(len(f.tracks)), nil
 }
 
-func (f *fakeService) Update(_ context.Context, id, _ int64, _ UpdateTrackRequest) (Track, error) {
+func (f *fakeService) Update(_ context.Context, id, _ int64, _ UpdateTrackInput) (Track, error) {
 	for _, t := range f.tracks {
 		if t.ID == id {
 			return t, nil

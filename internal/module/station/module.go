@@ -23,8 +23,8 @@ func (m *Module) RegisterRoutes(api *gin.RouterGroup) {
 	{
 		g.POST("", m.h.Create)
 		g.GET("", m.h.List)
-		g.GET("/:id", m.h.GetByID)
-		g.PATCH("/:id", m.h.Update)
-		g.DELETE("/:id", m.h.Delete)
+		g.GET("/:station_id", m.h.GetByID)
+		g.PATCH("/:station_id", m.h.Update)
+		g.DELETE("/:station_id", m.h.Delete)
 	}
 }

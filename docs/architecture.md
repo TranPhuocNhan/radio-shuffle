@@ -31,6 +31,7 @@ internal/
 │   ├── station/                ← Full CRUD (reference implementation)
 │   ├── user/                   ← Repository-only; consumed by auth via adapter
 │   ├── syncer/                 ← Background ingestion from Radio Browser API
+│   ├── radiobrowser/            ← Read-only access to synced Radio Browser stations
 │   ├── track/                  ← Stub (routes scaffolded, CRUD pending)
 │   ├── playlist/               ← Stub (routes scaffolded, CRUD pending)
 │   └── stream/                 ← Stub (routes scaffolded, CRUD pending)

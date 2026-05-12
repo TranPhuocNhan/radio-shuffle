@@ -117,7 +117,7 @@ func (h *Handler) Update(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	out, err := h.svc.Update(c.Request.Context(), id, stationID, UpdateTrackRequest{
+	out, err := h.svc.Update(c.Request.Context(), id, stationID, UpdateTrackInput{
 		Title:           req.Title,
 		Artist:          req.Artist,
 		AudioUrl:        req.AudioUrl,

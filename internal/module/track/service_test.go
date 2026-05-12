@@ -118,7 +118,7 @@ func TestService_Create_OK(t *testing.T) {
 func TestService_Update_NotFound(t *testing.T) {
 	svc := NewService(&fakeRepo{})
 	title := "New Title"
-	_, err := svc.Update(context.Background(), 99, 1, UpdateTrackRequest{Title: &title})
+	_, err := svc.Update(context.Background(), 99, 1, UpdateTrackInput{Title: &title})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -142,7 +142,7 @@ func TestService_Update_MergesFields(t *testing.T) {
 
 	// Patch only the title; other fields must remain unchanged.
 	newTitle := "Updated Title"
-	updated, err := svc.Update(context.Background(), created.ID, 1, UpdateTrackRequest{
+	updated, err := svc.Update(context.Background(), created.ID, 1, UpdateTrackInput{
 		Title: &newTitle,
 	})
 	if err != nil {

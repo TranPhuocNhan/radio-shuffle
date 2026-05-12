@@ -8,6 +8,7 @@
 | `station` | Complete | Full CRUD — reference implementation for new modules |
 | `user` | Repository-only | `Repository` interface + SQLC impl; no handler/service yet |
 | `syncer` | Complete | Background ingestion from Radio Browser API; no HTTP routes |
+| `radiobrowser` | Complete | Public read-only list of synced Radio Browser stations |
 | `track` | Complete | Full CRUD scoped to station — `POST/PATCH/DELETE` require auth |
 | `playlist` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
 | `stream` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
@@ -74,7 +75,7 @@ Full CRUD for radio stations. Use as the reference when implementing other modul
 - Sentinel errors: `ErrNotFound`
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
 - PATCH uses read-then-merge strategy in the service layer
-- Routes: `POST /stations`, `GET /stations`, `GET /stations/:id`, `PATCH /stations/:id`, `DELETE /stations/:id`
+- Routes: `POST /stations`, `GET /stations`, `GET /stations/:station_id`, `PATCH /stations/:station_id`, `DELETE /stations/:station_id`
 
 ### `user`
 
@@ -89,6 +90,13 @@ Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
 - Uses `UpsertBatch` with ON CONFLICT DO UPDATE in `radio_browser_stations`
 - Exposes `Service.Sync(ctx) (SyncResult, error)` — called directly from `cmd/syncer/main.go`
 - No HTTP routes
+
+### `radiobrowser`
+
+Read-only access to the synced Radio Browser stations.
+
+- Routes: `GET /radio-browser/stations`
+- List endpoints use `limit`/`offset` pagination (default 20, max 100)
 
 ### `track`
 

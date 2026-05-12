@@ -26,5 +26,11 @@ ON CONFLICT (stationuuid) DO UPDATE SET
     synced_at     = now(),
     updated_at    = now();
 
+-- name: ListRadioBrowserStations :many
+SELECT *
+FROM radio_browser_stations
+ORDER BY votes DESC, name ASC
+LIMIT $1 OFFSET $2;
+
 -- name: CountRadioBrowserStations :one
 SELECT COUNT(*)::bigint FROM radio_browser_stations;

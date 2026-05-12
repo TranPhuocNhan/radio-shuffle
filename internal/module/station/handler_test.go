@@ -82,7 +82,7 @@ func TestHandler_GetByID_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(NewService(fakeRepo{}))
 	r := gin.New()
-	r.GET("/stations/:id", h.GetByID)
+	r.GET("/stations/:station_id", h.GetByID)
 
 	req := httptest.NewRequest(http.MethodGet, "/stations/999", http.NoBody)
 	w := httptest.NewRecorder()

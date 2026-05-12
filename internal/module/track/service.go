@@ -24,9 +24,9 @@ type CreateTrackInput struct {
 	DurationSeconds int32
 }
 
-// UpdateTrackRequest is the service-layer input for a partial update.
+// UpdateTrackInput is the service-layer input for a partial update.
 // Nil pointer fields are left unchanged (read-then-merge strategy).
-type UpdateTrackRequest struct {
+type UpdateTrackInput struct {
 	Title           *string
 	Artist          *string
 	AudioUrl        *string
@@ -39,7 +39,7 @@ type Service interface {
 	Create(ctx context.Context, in CreateTrackInput) (Track, error)
 	GetByID(ctx context.Context, id int64) (Track, error)
 	List(ctx context.Context, stationID, limit, offset int64) ([]Track, int64, error)
-	Update(ctx context.Context, id, stationID int64, req UpdateTrackRequest) (Track, error)
+	Update(ctx context.Context, id, stationID int64, req UpdateTrackInput) (Track, error)
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -85,7 +85,7 @@ func (s *service) List(ctx context.Context, stationID, limit, offset int64) ([]T
 	return tracks, total, nil
 }
 
-func (s *service) Update(ctx context.Context, id, stationID int64, req UpdateTrackRequest) (Track, error) {
+func (s *service) Update(ctx context.Context, id, stationID int64, req UpdateTrackInput) (Track, error) {
 	prev, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

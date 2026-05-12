@@ -1,9 +1,10 @@
 package mw
 
 import (
-	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -16,7 +17,8 @@ func AuthRequired(signingKey []byte, issuer string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			response.Unauthorized(c, "missing token")
+			c.Abort()
 			return
 		}
 		tokenStr := strings.TrimPrefix(auth, "Bearer ")
@@ -26,16 +28,19 @@ func AuthRequired(signingKey []byte, issuer string) gin.HandlerFunc {
 			return signingKey, nil
 		})
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			response.Unauthorized(c, "invalid token")
+			c.Abort()
 			return
 		}
 		if claims.Issuer != issuer {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			response.Unauthorized(c, "invalid token")
+			c.Abort()
 			return
 		}
 		userID, err := strconv.ParseInt(claims.Subject, 10, 64)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid subject"})
+			response.Unauthorized(c, "invalid subject")
+			c.Abort()
 			return
 		}
 		c.Set(ContextUserIDKey, userID)

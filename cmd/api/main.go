@@ -11,6 +11,7 @@ import (
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/auth"
 	authadapters "github.com/tranphuocnhan/radio-shuffle/internal/module/auth/adapters"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/playlist"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/radiobrowser"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/station"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/stream"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
@@ -71,6 +72,7 @@ func main() {
 		router.RouteRegistrarFunc(playlist.RegisterRoutes),
 		router.RouteRegistrarFunc(stream.RegisterRoutes),
 		router.RouteRegistrarFunc(station.NewModule(pool).RegisterRoutes),
+		router.RouteRegistrarFunc(radiobrowser.NewModule(pool).RegisterRoutes),
 	)
 
 	srv := router.NewServer(&cfg, r)

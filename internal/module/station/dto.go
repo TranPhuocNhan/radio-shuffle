@@ -13,7 +13,7 @@ type CreateStationRequest struct {
 	OwnerID       *int64  `json:"owner_id,omitempty"`
 }
 
-// UpdateStationRequest is the HTTP body for PATCH /stations/:id.
+// UpdateStationRequest is the HTTP body for PATCH /stations/:station_id.
 // Omitted fields keep the existing values.
 type UpdateStationRequest struct {
 	Name          *string `json:"name"`

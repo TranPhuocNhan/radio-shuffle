@@ -124,7 +124,7 @@ func (h *Handler) Delete(c *gin.Context) {
 }
 
 func parseIDParam(c *gin.Context) (int64, error) {
-	return strconv.ParseInt(c.Param("id"), 10, 64)
+	return strconv.ParseInt(c.Param("station_id"), 10, 64)
 }
 
 func parseQueryInt64(c *gin.Context, key string, defaultVal int64) (int64, error) {

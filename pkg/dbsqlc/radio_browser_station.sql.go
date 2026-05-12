@@ -20,6 +20,58 @@ func (q *Queries) CountRadioBrowserStations(ctx context.Context) (int64, error) 
 	return column_1, err
 }
 
+const ListRadioBrowserStations = `-- name: ListRadioBrowserStations :many
+SELECT id, stationuuid, name, url, url_resolved, homepage, favicon, country, countrycode, state, language, codec, bitrate, votes, tags, last_check_ok, synced_at, created_at, updated_at
+FROM radio_browser_stations
+ORDER BY votes DESC, name ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListRadioBrowserStationsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListRadioBrowserStations(ctx context.Context, arg ListRadioBrowserStationsParams) ([]RadioBrowserStations, error) {
+	rows, err := q.db.Query(ctx, ListRadioBrowserStations, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RadioBrowserStations
+	for rows.Next() {
+		var i RadioBrowserStations
+		if err := rows.Scan(
+			&i.ID,
+			&i.Stationuuid,
+			&i.Name,
+			&i.Url,
+			&i.UrlResolved,
+			&i.Homepage,
+			&i.Favicon,
+			&i.Country,
+			&i.Countrycode,
+			&i.State,
+			&i.Language,
+			&i.Codec,
+			&i.Bitrate,
+			&i.Votes,
+			&i.Tags,
+			&i.LastCheckOk,
+			&i.SyncedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const UpsertRadioBrowserStation = `-- name: UpsertRadioBrowserStation :exec
 INSERT INTO radio_browser_stations (
     stationuuid, name, url, url_resolved, homepage, favicon,
