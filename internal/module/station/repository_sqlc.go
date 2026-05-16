@@ -95,3 +95,55 @@ func (r *sqlcRepository) Update(ctx context.Context, in UpdateInput) (Station, e
 func (r *sqlcRepository) Delete(ctx context.Context, id int64) error {
 	return r.q.DeleteStation(ctx, id)
 }
+
+func (r *sqlcRepository) Follow(ctx context.Context, userID, stationID int64) error {
+	return r.q.FollowStation(ctx, dbsqlc.FollowStationParams{
+		UserID:    userID,
+		StationID: stationID,
+	})
+}
+func (r *sqlcRepository) Unfollow(ctx context.Context, userID, stationID int64) error {
+	return r.q.UnfollowStation(ctx, dbsqlc.UnfollowStationParams{
+		UserID:    userID,
+		StationID: stationID,
+	})
+}
+func (r *sqlcRepository) IsFollowing(ctx context.Context, userID, stationID int64) (bool, error) {
+	follow, err := r.q.IsFollowingStation(ctx, dbsqlc.IsFollowingStationParams{
+		UserID:    userID,
+		StationID: stationID,
+	})
+	if err != nil {
+		return false, err
+	}
+	return follow, nil
+}
+func (r *sqlcRepository) GetFollowedStations(ctx context.Context, userID int64, limit int64, offset int64) ([]Station, error) {
+	rows, err := r.q.GetStationsByUserID(ctx, dbsqlc.GetStationsByUserIDParams{
+		UserID: userID,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Station, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, stationFromDB(row))
+	}
+	return out, nil
+}
+func (r *sqlcRepository) CountFollowedStations(ctx context.Context, userID int64) (int64, error) {
+	count, err := r.q.CountStationsByUserID(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	return int64(count), nil
+}
+func (r *sqlcRepository) CountFollowers(ctx context.Context, stationID int64) (int64, error) {
+	count, err := r.q.CountFollowersByStationID(ctx, stationID)
+	if err != nil {
+		return 0, err
+	}
+	return int64(count), nil
+}

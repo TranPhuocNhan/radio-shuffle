@@ -22,6 +22,14 @@ type Service interface {
 	List(ctx context.Context, filter ListStationsInput) ([]Station, int64, error)
 	Update(ctx context.Context, input UpdateStationInput) (Station, error)
 	Delete(ctx context.Context, id int64) error
+
+	// Follow system
+	Follow(ctx context.Context, userID, stationID int64) error
+	Unfollow(ctx context.Context, userID, stationID int64) error
+	IsFollowing(ctx context.Context, userID, stationID int64) (bool, error)
+	GetFollowedStations(ctx context.Context, userID int64, limit int64, offset int64) ([]Station, error)
+	CountFollowedStations(ctx context.Context, userID int64) (int64, error)
+	CountFollowers(ctx context.Context, stationID int64) (int64, error)
 }
 
 // CreateStationInput is the service-layer input for creating a station.
@@ -163,4 +171,54 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *service) Follow(ctx context.Context, userID, stationID int64) error {
+	if err := s.ensureStationExists(ctx, stationID); err != nil {
+		return err
+	}
+	return s.repo.Follow(ctx, userID, stationID)
+}
+func (s *service) Unfollow(ctx context.Context, userID, stationID int64) error {
+	if err := s.ensureStationExists(ctx, stationID); err != nil {
+		return err
+	}
+	return s.repo.Unfollow(ctx, userID, stationID)
+}
+func (s *service) IsFollowing(ctx context.Context, userID, stationID int64) (bool, error) {
+	if err := s.ensureStationExists(ctx, stationID); err != nil {
+		return false, err
+	}
+	following, err := s.repo.IsFollowing(ctx, userID, stationID)
+	if err != nil {
+		return false, err
+	}
+	return following, nil
+}
+func (s *service) GetFollowedStations(ctx context.Context, userID int64, limit int64, offset int64) ([]Station, error) {
+	rows, err := s.repo.GetFollowedStations(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+func (s *service) CountFollowedStations(ctx context.Context, userID int64) (int64, error) {
+	return s.repo.CountFollowedStations(ctx, userID)
+}
+func (s *service) CountFollowers(ctx context.Context, stationID int64) (int64, error) {
+	if err := s.ensureStationExists(ctx, stationID); err != nil {
+		return 0, err
+	}
+	return s.repo.CountFollowers(ctx, stationID)
+}
+
+func (s *service) ensureStationExists(ctx context.Context, stationID int64) error {
+	_, err := s.repo.GetByID(ctx, stationID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }

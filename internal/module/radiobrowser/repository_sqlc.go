@@ -41,10 +41,13 @@ func stationFromDB(s dbsqlc.RadioBrowserStations) Station {
 	}
 }
 
-func (r *sqlcRepository) List(ctx context.Context, limit, offset int64) ([]Station, error) {
+func (r *sqlcRepository) List(ctx context.Context, name, country, language string, limit, offset int64) ([]Station, error) {
 	rows, err := r.q.ListRadioBrowserStations(ctx, dbsqlc.ListRadioBrowserStationsParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		Name:       name,
+		Country:    country,
+		Language:   language,
+		PageLimit:  int32(limit),
+		PageOffset: int32(offset),
 	})
 	if err != nil {
 		return nil, err
@@ -56,6 +59,10 @@ func (r *sqlcRepository) List(ctx context.Context, limit, offset int64) ([]Stati
 	return out, nil
 }
 
-func (r *sqlcRepository) Count(ctx context.Context) (int64, error) {
-	return r.q.CountRadioBrowserStations(ctx)
+func (r *sqlcRepository) Count(ctx context.Context, name, country, language string) (int64, error) {
+	return r.q.CountRadioBrowserStations(ctx, dbsqlc.CountRadioBrowserStationsParams{
+		Name:     name,
+		Country:  country,
+		Language: language,
+	})
 }

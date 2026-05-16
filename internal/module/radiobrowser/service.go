@@ -9,8 +9,11 @@ const (
 
 // ListStationsInput holds pagination data for listing radio browser stations.
 type ListStationsInput struct {
-	Limit  int64
-	Offset int64
+	Name     string
+	Country  string
+	Language string
+	Limit    int64
+	Offset   int64
 }
 
 // Service defines the radio browser station operations.
@@ -28,11 +31,11 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) List(ctx context.Context, input ListStationsInput) ([]Station, int64, error) {
-	total, err := s.repo.Count(ctx)
+	total, err := s.repo.Count(ctx, input.Name, input.Country, input.Language)
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := s.repo.List(ctx, input.Limit, input.Offset)
+	rows, err := s.repo.List(ctx, input.Name, input.Country, input.Language, input.Limit, input.Offset)
 	if err != nil {
 		return nil, 0, err
 	}

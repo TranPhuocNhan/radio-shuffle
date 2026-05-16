@@ -11,19 +11,34 @@ import (
 )
 
 // fakeRepo is a minimal in-memory substitute for Repository in handler tests.
-type fakeRepo struct{}
+type fakeRepo struct {
+	lastName     string
+	lastCountry  string
+	lastLanguage string
+	lastLimit    int64
+	lastOffset   int64
+}
 
-func (fakeRepo) List(context.Context, int64, int64) ([]Station, error) {
+func (f *fakeRepo) List(_ context.Context, name, country, language string, limit, offset int64) ([]Station, error) {
+	f.lastName = name
+	f.lastCountry = country
+	f.lastLanguage = language
+	f.lastLimit = limit
+	f.lastOffset = offset
 	return []Station{}, nil
 }
 
-func (fakeRepo) Count(context.Context) (int64, error) {
+func (f *fakeRepo) Count(_ context.Context, name, country, language string) (int64, error) {
+	f.lastName = name
+	f.lastCountry = country
+	f.lastLanguage = language
 	return 0, nil
 }
 
 func TestHandler_List_Empty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := NewHandler(NewService(fakeRepo{}))
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo))
 	r := gin.New()
 	r.GET("/radio-browser/stations", h.List)
 
@@ -57,5 +72,30 @@ func TestHandler_List_Empty(t *testing.T) {
 	}
 	if envelope.Meta.Total != 0 {
 		t.Fatalf("expected meta.total 0, got %d", envelope.Meta.Total)
+	}
+}
+
+func TestHandler_List_Filters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo))
+	r := gin.New()
+	r.GET("/radio-browser/stations", h.List)
+
+	req := httptest.NewRequest(http.MethodGet, "/radio-browser/stations?name=Jazz&country=France&language=French", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if repo.lastName != "Jazz" {
+		t.Fatalf("expected name filter 'Jazz', got %q", repo.lastName)
+	}
+	if repo.lastCountry != "France" {
+		t.Fatalf("expected country filter 'France', got %q", repo.lastCountry)
+	}
+	if repo.lastLanguage != "French" {
+		t.Fatalf("expected language filter 'French', got %q", repo.lastLanguage)
 	}
 }

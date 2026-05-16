@@ -3,6 +3,7 @@ package radiobrowser
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
@@ -20,6 +21,9 @@ func NewHandler(svc Service) *Handler {
 }
 
 func (h *Handler) List(c *gin.Context) {
+	name := strings.TrimSpace(c.Query("name"))
+	country := strings.TrimSpace(c.Query("country"))
+	language := strings.TrimSpace(c.Query("language"))
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
 		response.BadRequest(c, "invalid limit")
@@ -32,8 +36,11 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.List(c.Request.Context(), ListStationsInput{
-		Limit:  limit,
-		Offset: offset,
+		Name:     name,
+		Country:  country,
+		Language: language,
+		Limit:    limit,
+		Offset:   offset,
 	})
 	if err != nil {
 		response.Internal(c, err)

@@ -10,11 +10,21 @@ import (
 )
 
 const CountRadioBrowserStations = `-- name: CountRadioBrowserStations :one
-SELECT COUNT(*)::bigint FROM radio_browser_stations
+SELECT COUNT(*)::bigint
+FROM radio_browser_stations
+WHERE ($1 = '' OR name ILIKE '%' || $1 || '%')
+  AND ($2 = '' OR country ILIKE $2)
+  AND ($3 = '' OR language ILIKE $3)
 `
 
-func (q *Queries) CountRadioBrowserStations(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, CountRadioBrowserStations)
+type CountRadioBrowserStationsParams struct {
+	Name     interface{} `json:"name"`
+	Country  interface{} `json:"country"`
+	Language interface{} `json:"language"`
+}
+
+func (q *Queries) CountRadioBrowserStations(ctx context.Context, arg CountRadioBrowserStationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, CountRadioBrowserStations, arg.Name, arg.Country, arg.Language)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -23,17 +33,29 @@ func (q *Queries) CountRadioBrowserStations(ctx context.Context) (int64, error) 
 const ListRadioBrowserStations = `-- name: ListRadioBrowserStations :many
 SELECT id, stationuuid, name, url, url_resolved, homepage, favicon, country, countrycode, state, language, codec, bitrate, votes, tags, last_check_ok, synced_at, created_at, updated_at
 FROM radio_browser_stations
+WHERE ($1 = '' OR name ILIKE '%' || $1 || '%')
+  AND ($2 = '' OR country ILIKE $2)
+  AND ($3 = '' OR language ILIKE $3)
 ORDER BY votes DESC, name ASC
-LIMIT $1 OFFSET $2
+LIMIT $5 OFFSET $4
 `
 
 type ListRadioBrowserStationsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Name       interface{} `json:"name"`
+	Country    interface{} `json:"country"`
+	Language   interface{} `json:"language"`
+	PageOffset int32       `json:"page_offset"`
+	PageLimit  int32       `json:"page_limit"`
 }
 
 func (q *Queries) ListRadioBrowserStations(ctx context.Context, arg ListRadioBrowserStationsParams) ([]RadioBrowserStations, error) {
-	rows, err := q.db.Query(ctx, ListRadioBrowserStations, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, ListRadioBrowserStations,
+		arg.Name,
+		arg.Country,
+		arg.Language,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

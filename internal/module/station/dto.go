@@ -39,6 +39,16 @@ type StationResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+// FollowStatusResponse reports whether a user follows a station.
+type FollowStatusResponse struct {
+	Following bool `json:"following"`
+}
+
+// FollowersCountResponse reports how many users follow a station.
+type FollowersCountResponse struct {
+	Count int64 `json:"count"`
+}
+
 func toCreateStationInput(req CreateStationRequest) CreateStationInput {
 	return CreateStationInput{
 		Name:          req.Name,

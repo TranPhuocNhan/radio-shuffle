@@ -95,3 +95,8 @@ type Users struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
+
+type UsersStations struct {
+	UserID    int64 `json:"user_id"`
+	StationID int64 `json:"station_id"`
+}

@@ -71,7 +71,7 @@ func main() {
 		router.RouteRegistrarFunc(track.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
 		router.RouteRegistrarFunc(playlist.RegisterRoutes),
 		router.RouteRegistrarFunc(stream.RegisterRoutes),
-		router.RouteRegistrarFunc(station.NewModule(pool).RegisterRoutes),
+		router.RouteRegistrarFunc(station.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
 		router.RouteRegistrarFunc(radiobrowser.NewModule(pool).RegisterRoutes),
 	)
 

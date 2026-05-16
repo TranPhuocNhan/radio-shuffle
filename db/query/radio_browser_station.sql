@@ -29,8 +29,15 @@ ON CONFLICT (stationuuid) DO UPDATE SET
 -- name: ListRadioBrowserStations :many
 SELECT *
 FROM radio_browser_stations
+WHERE (sqlc.arg(name) = '' OR name ILIKE '%' || sqlc.arg(name) || '%')
+  AND (sqlc.arg(country) = '' OR country ILIKE sqlc.arg(country))
+  AND (sqlc.arg(language) = '' OR language ILIKE sqlc.arg(language))
 ORDER BY votes DESC, name ASC
-LIMIT $1 OFFSET $2;
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountRadioBrowserStations :one
-SELECT COUNT(*)::bigint FROM radio_browser_stations;
+SELECT COUNT(*)::bigint
+FROM radio_browser_stations
+WHERE (sqlc.arg(name) = '' OR name ILIKE '%' || sqlc.arg(name) || '%')
+  AND (sqlc.arg(country) = '' OR country ILIKE sqlc.arg(country))
+  AND (sqlc.arg(language) = '' OR language ILIKE sqlc.arg(language));

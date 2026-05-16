@@ -30,6 +30,6 @@ type Station struct {
 
 // Repository loads radio browser stations from the database.
 type Repository interface {
-	List(ctx context.Context, limit, offset int64) ([]Station, error)
-	Count(ctx context.Context) (int64, error)
+	List(ctx context.Context, name, country, language string, limit, offset int64) ([]Station, error)
+	Count(ctx context.Context, name, country, language string) (int64, error)
 }

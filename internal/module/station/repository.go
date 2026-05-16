@@ -50,4 +50,12 @@ type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	Update(ctx context.Context, in UpdateInput) (Station, error)
 	Delete(ctx context.Context, id int64) error
+
+	// Follow system
+	Follow(ctx context.Context, userID, stationID int64) error
+	Unfollow(ctx context.Context, userID, stationID int64) error
+	IsFollowing(ctx context.Context, userID, stationID int64) (bool, error)
+	GetFollowedStations(ctx context.Context, userID int64, limit int64, offset int64) ([]Station, error)
+	CountFollowedStations(ctx context.Context, userID int64) (int64, error)
+	CountFollowers(ctx context.Context, stationID int64) (int64, error)
 }
