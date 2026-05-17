@@ -40,7 +40,7 @@ internal/
 │   ├── database/               ← pgxpool connection factory
 │   ├── health/                 ← /health and /ready endpoints
 │   ├── mw/                     ← Middleware: RequestID, Recovery, Logger, AuthRequired
-│   ├── mq/                     ← RabbitMQ client + topology setup
+│   ├── mq/                     ← RabbitMQ client + topology setup + message payloads
 │   ├── radiobrowser/           ← External Radio Browser API client
 │   └── response/               ← Standardized JSON envelope helpers
 └── router/                     ← RouteRegistrar interface, Server wrapper

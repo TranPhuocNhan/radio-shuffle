@@ -82,30 +82,31 @@ func main() {
 }
 
 func handleMessage(ctx context.Context, mqClient *mq.Client, processor syncer.JobProcessor, cfg config.Config, msg amqp091.Delivery) {
-	var req syncer.SyncRequest
-	if err := json.Unmarshal(msg.Body, &req); err != nil {
+	var payload mq.SyncRequestedMessage
+	if err := json.Unmarshal(msg.Body, &payload); err != nil {
 		slog.Error("invalid sync request", "err", err)
 		_ = publishToDLQ(ctx, mqClient, msg, 0)
 		_ = msg.Ack(false)
 		return
 	}
+	cmd := syncer.FromSyncRequestedMessage(payload)
 
 	retryCount := retryCountFromHeaders(msg.Headers)
 
-	result, err := processor.Process(ctx, req)
+	result, err := processor.Process(ctx, cmd)
 	if err == nil {
-		slog.Info("sync completed", "request_id", req.RequestID, "fetched", result.Fetched, "upserted", result.Upserted)
+		slog.Info("sync completed", "request_id", cmd.RequestID, "fetched", result.Fetched, "upserted", result.Upserted)
 		_ = msg.Ack(false)
 		return
 	}
 	if errors.Is(err, syncer.ErrJobDuplicate) || errors.Is(err, syncer.ErrJobInProgress) {
-		slog.Warn("sync skipped", "request_id", req.RequestID, "err", err)
+		slog.Warn("sync skipped", "request_id", cmd.RequestID, "err", err)
 		_ = msg.Ack(false)
 		return
 	}
 
 	if retryCount >= cfg.SyncMaxRetries {
-		slog.Error("sync failed, sending to dlq", "request_id", req.RequestID, "retry", retryCount, "err", err)
+		slog.Error("sync failed, sending to dlq", "request_id", cmd.RequestID, "retry", retryCount, "err", err)
 		if err := publishToDLQ(ctx, mqClient, msg, retryCount); err != nil {
 			slog.Error("dlq publish failed", "err", err)
 			_ = msg.Nack(false, true)
@@ -120,7 +121,7 @@ func handleMessage(ctx context.Context, mqClient *mq.Client, processor syncer.Jo
 		_ = msg.Nack(false, true)
 		return
 	}
-	slog.Warn("sync failed, retry scheduled", "request_id", req.RequestID, "retry", retryCount+1, "err", err)
+	slog.Warn("sync failed, retry scheduled", "request_id", cmd.RequestID, "retry", retryCount+1, "err", err)
 	_ = msg.Ack(false)
 }
 

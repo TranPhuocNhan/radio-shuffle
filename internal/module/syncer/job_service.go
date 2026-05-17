@@ -18,7 +18,8 @@ var (
 	defaultScopeBytes = json.RawMessage(`{"mode":"full"}`)
 )
 
-type SyncRequest struct {
+// SyncCommand is the domain command for triggering a sync job.
+type SyncCommand struct {
 	RequestID   string          `json:"request_id"`
 	RequestedBy string          `json:"requested_by"`
 	Scope       json.RawMessage `json:"scope"`
@@ -26,7 +27,7 @@ type SyncRequest struct {
 }
 
 type JobPublisher interface {
-	PublishSyncRequest(ctx context.Context, req SyncRequest) error
+	PublishSyncCommand(ctx context.Context, cmd SyncCommand) error
 }
 
 type JobService interface {
@@ -35,7 +36,7 @@ type JobService interface {
 }
 
 type JobProcessor interface {
-	Process(ctx context.Context, req SyncRequest) (SyncResult, error)
+	Process(ctx context.Context, cmd SyncCommand) (SyncResult, error)
 }
 
 type jobService struct {
@@ -61,25 +62,25 @@ func (s *jobService) Trigger(ctx context.Context, requestedBy string) (SyncJob, 
 	if err != nil {
 		return SyncJob{}, err
 	}
-	req := SyncRequest{
+	cmd := SyncCommand{
 		RequestID:   requestID,
 		RequestedBy: requestedBy,
 		Scope:       defaultScopeBytes,
 		RequestedAt: time.Now(),
 	}
 	if err := s.repo.CreateSyncJob(ctx, CreateSyncJobInput{
-		RequestID:   req.RequestID,
+		RequestID:   cmd.RequestID,
 		Status:      SyncJobPending,
-		RequestedBy: req.RequestedBy,
-		Scope:       req.Scope,
+		RequestedBy: cmd.RequestedBy,
+		Scope:       cmd.Scope,
 	}); err != nil {
 		return SyncJob{}, err
 	}
-	if err := s.publisher.PublishSyncRequest(ctx, req); err != nil {
-		_ = s.repo.MarkSyncJobFailed(ctx, req.RequestID, err.Error())
+	if err := s.publisher.PublishSyncCommand(ctx, cmd); err != nil {
+		_ = s.repo.MarkSyncJobFailed(ctx, cmd.RequestID, err.Error())
 		return SyncJob{}, err
 	}
-	return s.repo.GetSyncJob(ctx, req.RequestID)
+	return s.repo.GetSyncJob(ctx, cmd.RequestID)
 }
 
 func (s *jobService) Status(ctx context.Context, requestID string) (SyncJob, error) {
@@ -93,19 +94,19 @@ func (s *jobService) Status(ctx context.Context, requestID string) (SyncJob, err
 	return job, nil
 }
 
-func (p *jobProcessor) Process(ctx context.Context, req SyncRequest) (SyncResult, error) {
-	job, err := p.repo.GetSyncJob(ctx, req.RequestID)
+func (p *jobProcessor) Process(ctx context.Context, cmd SyncCommand) (SyncResult, error) {
+	job, err := p.repo.GetSyncJob(ctx, cmd.RequestID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			if err := p.repo.CreateSyncJob(ctx, CreateSyncJobInput{
-				RequestID:   req.RequestID,
+				RequestID:   cmd.RequestID,
 				Status:      SyncJobPending,
-				RequestedBy: req.RequestedBy,
-				Scope:       req.Scope,
+				RequestedBy: cmd.RequestedBy,
+				Scope:       cmd.Scope,
 			}); err != nil {
 				return SyncResult{}, err
 			}
-			job, err = p.repo.GetSyncJob(ctx, req.RequestID)
+			job, err = p.repo.GetSyncJob(ctx, cmd.RequestID)
 			if err != nil {
 				return SyncResult{}, err
 			}
@@ -121,15 +122,15 @@ func (p *jobProcessor) Process(ctx context.Context, req SyncRequest) (SyncResult
 			return SyncResult{}, ErrJobInProgress
 		}
 	}
-	if err := p.repo.MarkSyncJobRunning(ctx, req.RequestID); err != nil {
+	if err := p.repo.MarkSyncJobRunning(ctx, cmd.RequestID); err != nil {
 		return SyncResult{}, err
 	}
 	result, err := p.sync.Sync(ctx)
 	if err != nil {
-		_ = p.repo.MarkSyncJobFailed(ctx, req.RequestID, err.Error())
+		_ = p.repo.MarkSyncJobFailed(ctx, cmd.RequestID, err.Error())
 		return result, err
 	}
-	if err := p.repo.MarkSyncJobCompleted(ctx, req.RequestID); err != nil {
+	if err := p.repo.MarkSyncJobCompleted(ctx, cmd.RequestID); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -142,6 +143,3 @@ func newRequestID() (string, error) {
 	}
 	return hex.EncodeToString(buf), nil
 }
-
-
-
