@@ -18,7 +18,7 @@ func NewModule(pool *pgxpool.Pool, client *radiobrowser.Client) *Module {
 	return &Module{svc: svc}
 }
 
-// Service returns the Service for use by the cron entrypoint.
+// Service returns the Service for use by the worker entrypoint.
 func (m *Module) Service() Service {
 	return m.svc
 }

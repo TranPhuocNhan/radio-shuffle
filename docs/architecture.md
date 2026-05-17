@@ -40,6 +40,7 @@ internal/
 │   ├── database/               ← pgxpool connection factory
 │   ├── health/                 ← /health and /ready endpoints
 │   ├── mw/                     ← Middleware: RequestID, Recovery, Logger, AuthRequired
+│   ├── mq/                     ← RabbitMQ client + topology setup
 │   ├── radiobrowser/           ← External Radio Browser API client
 │   └── response/               ← Standardized JSON envelope helpers
 └── router/                     ← RouteRegistrar interface, Server wrapper
@@ -79,7 +80,8 @@ cmd/api ──► internal/module/* ──► pkg/dbsqlc (generated)
   └──► internal/router
 
 cmd/syncer ──► internal/module/syncer ──► internal/platform/radiobrowser
-  │                                              └──► pkg/dbsqlc
+  │                │                            └──► pkg/dbsqlc
+  │                └──► internal/platform/mq ──► RabbitMQ
   ├──► internal/platform/config
   └──► internal/platform/database
 ```
@@ -140,3 +142,4 @@ Error codes: `VALIDATION_ERROR` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_FOUND` 
 | Logging | `log/slog` (structured JSON) |
 | CORS | `gin-contrib/cors` |
 | External API | Radio Browser (`internal/platform/radiobrowser/`) |
+| Messaging | RabbitMQ (`internal/platform/mq/`, `amqp091-go`) |

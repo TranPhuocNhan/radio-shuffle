@@ -12,6 +12,7 @@ import (
 	authadapters "github.com/tranphuocnhan/radio-shuffle/internal/module/auth/adapters"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/playlist"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/radiobrowser"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/syncer"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/station"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/stream"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
@@ -19,6 +20,7 @@ import (
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/database"
 	plhealth "github.com/tranphuocnhan/radio-shuffle/internal/platform/health"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mq"
 	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/internal/router"
 
@@ -42,6 +44,26 @@ func main() {
 		os.Exit(1)
 	}
 	defer stopPool()
+
+	mqClient, err := mq.New(mq.Config{
+		URL:           cfg.RabbitMQURL,
+		Exchange:      cfg.SyncEventsExchange,
+		Queue:         cfg.SyncQueue,
+		RetryQueue:    cfg.SyncRetryQueue,
+		DLQ:           cfg.SyncDLQ,
+		RetryTTLMS:    cfg.SyncRetryTTLMS,
+		MaxRetries:    cfg.SyncMaxRetries,
+		MainRouteKey:  "sync.requested",
+		RetryRouteKey: "sync.requested.retry",
+		DLQRouteKey:   "sync.requested.dlq",
+	})
+	if err != nil {
+		slog.Error("rabbitmq connect failed", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		_ = mqClient.Close()
+	}()
 
 	gin.SetMode(cfg.GinMode())
 	r := gin.New()
@@ -72,6 +94,7 @@ func main() {
 		router.RouteRegistrarFunc(playlist.RegisterRoutes),
 		router.RouteRegistrarFunc(stream.RegisterRoutes),
 		router.RouteRegistrarFunc(station.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
+		router.RouteRegistrarFunc(syncer.NewAPIModule(pool, syncer.NewPublisher(mqClient, "sync.requested"), []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
 		router.RouteRegistrarFunc(radiobrowser.NewModule(pool).RegisterRoutes),
 	)
 

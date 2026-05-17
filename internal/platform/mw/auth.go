@@ -10,7 +10,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const ContextUserIDKey = "user_id"
+const (
+	ContextUserIDKey  = "user_id"
+	ContextUserRoleKey = "user_role"
+)
+
+type accessClaims struct {
+	jwt.RegisteredClaims
+	Role string `json:"role"`
+}
 
 // AuthRequired validates JWT access tokens and injects user_id into context.
 func AuthRequired(signingKey []byte, issuer string) gin.HandlerFunc {
@@ -23,7 +31,7 @@ func AuthRequired(signingKey []byte, issuer string) gin.HandlerFunc {
 		}
 		tokenStr := strings.TrimPrefix(auth, "Bearer ")
 
-		claims := jwt.RegisteredClaims{}
+		claims := accessClaims{}
 		token, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (any, error) {
 			return signingKey, nil
 		})
@@ -44,6 +52,7 @@ func AuthRequired(signingKey []byte, issuer string) gin.HandlerFunc {
 			return
 		}
 		c.Set(ContextUserIDKey, userID)
+		c.Set(ContextUserRoleKey, claims.Role)
 		c.Next()
 	}
 }
@@ -57,3 +66,27 @@ func UserIDFromContext(c *gin.Context) (int64, bool) {
 	id, ok := val.(int64)
 	return id, ok
 }
+
+// UserRoleFromContext returns the user role if it exists in context.
+func UserRoleFromContext(c *gin.Context) (string, bool) {
+	val, ok := c.Get(ContextUserRoleKey)
+	if !ok {
+		return "", false
+	}
+	role, ok := val.(string)
+	return role, ok
+}
+
+// AdminRequired enforces that the user role is admin.
+func AdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, ok := UserRoleFromContext(c)
+		if !ok || role != "admin" {
+			response.Forbidden(c, "admin role required")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+

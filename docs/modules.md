@@ -7,7 +7,7 @@
 | `auth` | Complete | JWT register/login/refresh/logout; token repository; cross-module adapters |
 | `station` | Complete | Full CRUD — reference implementation for new modules |
 | `user` | Repository-only | `Repository` interface + SQLC impl; no handler/service yet |
-| `syncer` | Complete | Background ingestion from Radio Browser API; no HTTP routes |
+| `syncer` | Complete | Background ingestion from Radio Browser API; admin trigger/status endpoints |
 | `radiobrowser` | Complete | Public read-only list of synced Radio Browser stations |
 | `track` | Complete | Full CRUD scoped to station — `POST/PATCH/DELETE` require auth |
 | `playlist` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
@@ -86,10 +86,12 @@ Consumed by `auth` via `auth/adapters/auth_user.go`.
 
 Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
 
-- Runs on a configurable ticker interval (default 6h, set via `SYNC_INTERVAL`)
+- Consumes `sync.requested` events from RabbitMQ
 - Uses `UpsertBatch` with ON CONFLICT DO UPDATE in `radio_browser_stations`
-- Exposes `Service.Sync(ctx) (SyncResult, error)` — called directly from `cmd/syncer/main.go`
-- No HTTP routes
+- Exposes `Service.Sync(ctx) (SyncResult, error)` — called by the RabbitMQ worker
+- Admin endpoints:
+  - `POST /syncer/trigger`
+  - `GET /syncer/status/:request_id`
 
 ### `radiobrowser`
 

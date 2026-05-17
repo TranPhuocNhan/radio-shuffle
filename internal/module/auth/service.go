@@ -71,6 +71,11 @@ type AuthOutput struct {
 	RefreshToken string
 }
 
+type accessClaims struct {
+	jwt.RegisteredClaims
+	Role string `json:"role"`
+}
+
 type service struct {
 	users    UserReader
 	writers  UserWriter
@@ -113,7 +118,7 @@ func (s *service) Register(ctx context.Context, in RegisterInput) (AuthOutput, e
 	if err != nil {
 		return AuthOutput{}, err
 	}
-	out, err := s.issueTokens(ctx, user.ID)
+	out, err := s.issueTokens(ctx, user)
 	if err != nil {
 		return AuthOutput{}, err
 	}
@@ -136,7 +141,7 @@ func (s *service) Login(ctx context.Context, in LoginInput) (AuthOutput, error) 
 	if err := bcrypt.CompareHashAndPassword(user.PasswordHash, []byte(in.Password)); err != nil {
 		return AuthOutput{}, ErrInvalidCredentials
 	}
-	return s.issueTokens(ctx, user.ID)
+	return s.issueTokens(ctx, user)
 }
 
 func (s *service) Refresh(ctx context.Context, in RefreshInput) (AuthOutput, error) {
@@ -155,15 +160,19 @@ func (s *service) Refresh(ctx context.Context, in RefreshInput) (AuthOutput, err
 	if err := s.tokens.DeleteByHash(ctx, hash); err != nil {
 		return AuthOutput{}, err
 	}
-	return s.issueTokens(ctx, stored.UserID)
+	user, err := s.users.GetByID(ctx, stored.UserID)
+	if err != nil {
+		return AuthOutput{}, err
+	}
+	return s.issueTokens(ctx, user)
 }
 
 func (s *service) Logout(ctx context.Context, in LogoutInput) error {
 	return s.tokens.DeleteByHash(ctx, hashToken(in.RefreshToken))
 }
 
-func (s *service) issueTokens(ctx context.Context, userID int64) (AuthOutput, error) {
-	accessToken, err := s.newAccessToken(userID)
+func (s *service) issueTokens(ctx context.Context, user User) (AuthOutput, error) {
+	accessToken, err := s.newAccessToken(user)
 	if err != nil {
 		return AuthOutput{}, err
 	}
@@ -173,7 +182,7 @@ func (s *service) issueTokens(ctx context.Context, userID int64) (AuthOutput, er
 	}
 	expiresAt := time.Now().Add(s.cfg.RefreshTTL)
 	if err := s.tokens.Store(ctx, StoreRefreshTokenInput{
-		UserID:    userID,
+		UserID:    user.ID,
 		TokenHash: refreshHash,
 		ExpiresAt: expiresAt,
 	}); err != nil {
@@ -182,13 +191,16 @@ func (s *service) issueTokens(ctx context.Context, userID int64) (AuthOutput, er
 	return AuthOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
-func (s *service) newAccessToken(userID int64) (string, error) {
+func (s *service) newAccessToken(user User) (string, error) {
 	now := time.Now()
-	claims := jwt.RegisteredClaims{
-		Subject:   strconv.FormatInt(userID, 10),
-		Issuer:    s.cfg.Issuer,
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.AccessTTL)),
+	claims := accessClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   strconv.FormatInt(user.ID, 10),
+			Issuer:    s.cfg.Issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.AccessTTL)),
+		},
+		Role: user.Role,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.cfg.SigningKey)

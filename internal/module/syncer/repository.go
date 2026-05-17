@@ -2,6 +2,7 @@ package syncer
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -47,7 +48,40 @@ type UpsertInput struct {
 	LastCheckOK bool
 }
 
+type SyncJobStatus string
+
+const (
+	SyncJobPending   SyncJobStatus = "pending"
+	SyncJobRunning   SyncJobStatus = "running"
+	SyncJobCompleted SyncJobStatus = "completed"
+	SyncJobFailed    SyncJobStatus = "failed"
+)
+
+type SyncJob struct {
+	RequestID    string
+	Status       SyncJobStatus
+	RequestedBy  string
+	Scope        json.RawMessage
+	ErrorMessage *string
+	StartedAt    *time.Time
+	FinishedAt   *time.Time
+	CreatedAt    time.Time
+}
+
+type CreateSyncJobInput struct {
+	RequestID   string
+	Status      SyncJobStatus
+	RequestedBy string
+	Scope       json.RawMessage
+}
+
 // Repository persists radio-browser stations.
 type Repository interface {
 	UpsertBatch(ctx context.Context, stations []UpsertInput) (int64, error)
+
+	CreateSyncJob(ctx context.Context, in CreateSyncJobInput) error
+	GetSyncJob(ctx context.Context, requestID string) (SyncJob, error)
+	MarkSyncJobRunning(ctx context.Context, requestID string) error
+	MarkSyncJobCompleted(ctx context.Context, requestID string) error
+	MarkSyncJobFailed(ctx context.Context, requestID string, message string) error
 }

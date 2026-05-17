@@ -36,6 +36,17 @@
 
 > Never modify an already-applied migration — create a new one instead.
 
+## Syncer Event Workflow
+
+1. Admin calls `POST /syncer/trigger` (JWT + admin role required)
+2. API publishes `sync.requested` to RabbitMQ
+3. Syncer worker consumes the event and runs `Service.Sync`
+4. Sync status is stored in `sync_jobs`
+5. Admin checks status via `GET /syncer/status/:request_id`
+
+Retries use the TTL-based retry queue (`syncer.jobs.retry`). Failed messages after
+`SYNC_MAX_RETRIES` are routed to the DLQ (`syncer.jobs.dlq`).
+
 ## Full Validation Sequence
 
 MANDATORY before declaring any task complete:

@@ -76,6 +76,17 @@ type Streams struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type SyncJobs struct {
+	RequestID    string             `json:"request_id"`
+	Status       string             `json:"status"`
+	RequestedBy  string             `json:"requested_by"`
+	Scope        []byte             `json:"scope"`
+	ErrorMessage *string            `json:"error_message"`
+	StartedAt    pgtype.Timestamptz `json:"started_at"`
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Tracks struct {
 	ID              int64              `json:"id"`
 	StationID       int64              `json:"station_id"`
