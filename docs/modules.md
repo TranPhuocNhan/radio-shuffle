@@ -10,8 +10,8 @@
 | `syncer` | Complete | Background ingestion from Radio Browser API; admin trigger/status endpoints |
 | `radiobrowser` | Complete | Public read-only list of synced Radio Browser stations |
 | `track` | Complete | Full CRUD scoped to station — `POST/PATCH/DELETE` require auth |
-| `playlist` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
-| `stream` | Stub | `RegisterRoutes` scaffolded; CRUD not yet implemented |
+| `playlist` | Complete | CRUD + playlist tracks (add/remove/reorder), owner-only writes; auth required for reads |
+| `stream` | Complete | Start/end streams + user history; auth required |
 
 ## Module File Anatomy
 
@@ -117,7 +117,32 @@ Full CRUD for tracks belonging to a station.
   - `PATCH /stations/:station_id/tracks/:id` *(auth required)*
   - `DELETE /stations/:station_id/tracks/:id` *(auth required)*
 
-### `playlist`, `stream`
+### `playlist`
 
-Currently stubs — `RegisterRoutes` is a no-op. Schema, migrations, and SQLC queries exist.
-Implement following `station` and `track` as reference implementations.
+Owner-managed playlists with tracks and reorder support.
+
+- All reads require auth; non-owners can read only public playlists
+- Writes are owner-only (create/update/delete, add/remove/reorder tracks)
+- List endpoints use `limit`/`offset` pagination (default 20, max 100)
+- Routes:
+  - `POST /playlists`
+  - `GET  /playlists`
+  - `GET  /playlists/:id`
+  - `PATCH /playlists/:id`
+  - `DELETE /playlists/:id`
+  - `POST /playlists/:id/tracks`
+  - `GET  /playlists/:id/tracks`
+  - `DELETE /playlists/:id/tracks/:track_id`
+  - `PATCH /playlists/:id/tracks/reorder`
+
+### `stream`
+
+Tracks user listening sessions.
+
+- All routes require auth; users only see their own streams
+- List endpoints use `limit`/`offset` pagination (default 20, max 100)
+- Endpoints:
+  - `POST /streams`
+  - `GET  /streams`
+  - `GET  /streams/:id`
+  - `PATCH /streams/:id/end`

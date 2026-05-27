@@ -49,7 +49,7 @@ This specification covers the business use cases for Radio Shuffle. It stays at 
 - Track management operations require authentication (read is public).
 - Partial updates keep unspecified fields unchanged.
 
-## Playlists (Planned)
+## Playlists
 ### Use Cases
 - Create a playlist owned by a user.
 - Add tracks to a playlist.
@@ -61,7 +61,7 @@ This specification covers the business use cases for Radio Shuffle. It stays at 
 - Playlist visibility can be public or private.
 - A track can appear in multiple playlists.
 
-## Streams (Planned)
+## Streams
 ### Use Cases
 - Record when a user starts listening to a station.
 - Record when a user ends a listening session.
@@ -88,7 +88,6 @@ This specification covers the business use cases for Radio Shuffle. It stays at 
 - Authentication for write operations where applicable.
 
 ## Known Gaps and Future Work
-- Implement playlist and stream HTTP APIs.
 - Add admin use cases and role-based management.
 - Expand user profile features beyond authentication.
 
