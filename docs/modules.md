@@ -20,11 +20,12 @@ Every fully-implemented HTTP module contains:
 | File | Responsibility |
 |---|---|
 | `module.go` | `NewModule()` constructor + `RegisterRoutes(*gin.RouterGroup)` |
-| `handler.go` | HTTP handlers — binds JSON, delegates to service, maps errors to response helpers |
+| `handler.go` | HTTP handlers — binds JSON, delegates to service, returns request/service errors |
 | `service.go` | `Service` interface (exported) + `service` struct (unexported) with business logic |
 | `repository.go` | `Repository` interface (port) + all domain types (`XxxRow`, `CreateInput`, `UpdateInput`) |
 | `repository_sqlc.go` | SQLC-backed implementation of `Repository` |
 | `dto.go` | HTTP request/response structs with `json` and `binding` tags |
+| `error_mapper.go` | Maps module/domain errors to response helpers for `httperr.Wrap` |
 | `handler_test.go` | Handler unit tests using stub services and `httptest` |
 | `service_test.go` | Service unit tests using fake repositories |
 
@@ -51,7 +52,8 @@ auth needs user data
   └── cmd/api/main.go wires it:
         userRepo  := user.NewRepository(pool)
         authUsers := authadapters.NewAuthUserAdapter(userRepo)
-        auth.NewModule(&cfg, authUsers, authUsers, authTokens, nil)
+        authSvc   := auth.NewService(authUsers, authUsers, authTokens, authCfg, nil)
+        auth.NewModule(auth.NewHandler(authSvc))
 ```
 
 The adapter is the **only** file where two module packages appear in the same import block.
@@ -66,6 +68,7 @@ Handles registration, login, token refresh, and logout.
 - Issues long-lived refresh tokens stored as SHA-256 hashes in `refresh_tokens` table
 - Depends on `UserReader` and `UserWriter` interfaces (implemented by `auth/adapters/auth_user.go` using `user.Repository`)
 - Sentinel errors: `ErrEmailTaken`, `ErrInvalidCredentials`, `ErrInvalidRefreshToken`, `ErrWeakPassword`
+- Handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - Routes: `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`
 
 ### `station`
@@ -73,9 +76,12 @@ Handles registration, login, token refresh, and logout.
 Full CRUD for radio stations. Use as the reference when implementing other modules.
 
 - Sentinel errors: `ErrNotFound`
+- Repository maps DB no-row errors to `ErrRepoNotFound`; service maps that to `ErrNotFound`
+- Handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
 - PATCH uses read-then-merge strategy in the service layer
-- Routes: `POST /stations`, `GET /stations`, `GET /stations/:station_id`, `PATCH /stations/:station_id`, `DELETE /stations/:station_id`
+- Follow endpoints require auth and are wired through the station module auth middleware
+- Routes: `POST /stations`, `GET /stations`, `GET /stations/:station_id`, `PATCH /stations/:station_id`, `DELETE /stations/:station_id`, `POST/DELETE /stations/:station_id/follow`, `GET /stations/:station_id/following`, `GET /stations/:station_id/followers/count`, `GET /stations/followed`
 
 ### `user`
 
@@ -89,6 +95,8 @@ Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
 - Consumes `sync.requested` events from RabbitMQ
 - Uses `UpsertBatch` with ON CONFLICT DO UPDATE in `radio_browser_stations`
 - Exposes `Service.Sync(ctx) (SyncResult, error)` — called by the RabbitMQ worker
+- API handlers return errors and routes use `httperr.Wrap(..., MapError)`
+- Sync job repository no-row errors map to `ErrRepoJobNotFound`; job service maps that to `ErrJobNotFound`
 - Admin endpoints:
   - `POST /syncer/trigger`
   - `GET /syncer/status/:request_id`
@@ -99,6 +107,7 @@ Read-only access to the synced Radio Browser stations.
 
 - Routes: `GET /radio-browser/stations`
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
+- Handlers return errors and routes use `httperr.Wrap(..., MapError)`; unexpected repository/service errors fall through to platform internal error handling
 
 ### `track`
 
@@ -108,6 +117,9 @@ Full CRUD for tracks belonging to a station.
 - Routes are nested under `/stations/:station_id/tracks`
 - `GET` endpoints are public; `POST`, `PATCH`, `DELETE` require a valid JWT
 - Sentinel errors: `ErrNotFound`
+- Repository maps DB no-row errors to `ErrRepoNotFound`; service maps that to `ErrNotFound`
+- Invalid station references on track create map to `ErrStationNotFound`
+- Handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
 - `PATCH` uses read-then-merge strategy in the service layer
 - Routes:
@@ -124,6 +136,7 @@ Owner-managed playlists with tracks and reorder support.
 - All reads require auth; non-owners can read only public playlists
 - Writes are owner-only (create/update/delete, add/remove/reorder tracks)
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
+- Playlist track positions are required, non-negative, and unique within a playlist; reorder requests must include the exact existing track set
 - Routes:
   - `POST /playlists`
   - `GET  /playlists`
@@ -140,6 +153,9 @@ Owner-managed playlists with tracks and reorder support.
 Tracks user listening sessions.
 
 - All routes require auth; users only see their own streams
+- Repository maps DB no-row errors to `ErrRepoNotFound`; service maps that to `ErrNotFound`
+- Invalid station references on stream start map to `ErrStationNotFound`
+- Handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - List endpoints use `limit`/`offset` pagination (default 20, max 100)
 - Endpoints:
   - `POST /streams`

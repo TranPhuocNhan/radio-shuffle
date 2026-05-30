@@ -11,7 +11,7 @@
 | `internal/router/` | `RouteRegistrar` interface + `Server` wrapper |
 | `pkg/dbsqlc/` | SQLC-generated DB accessors — **never edit by hand** |
 | `db/` | Schema, migrations, SQLC queries, config |
-| `test/integration/` | Integration test scaffold (currently empty) |
+| `test/integration/` | Integration tests that exercise database-backed workflows |
 | `docs/` | Living documentation |
 | `logs/` | Runtime log files (`.gitkeep`) |
 
@@ -32,9 +32,9 @@ internal/
 │   ├── user/                   ← Repository-only; consumed by auth via adapter
 │   ├── syncer/                 ← Background ingestion from Radio Browser API
 │   ├── radiobrowser/            ← Read-only access to synced Radio Browser stations
-│   ├── track/                  ← Stub (routes scaffolded, CRUD pending)
-│   ├── playlist/               ← Stub (routes scaffolded, CRUD pending)
-│   └── stream/                 ← Stub (routes scaffolded, CRUD pending)
+│   ├── track/                  ← Station-scoped track CRUD
+│   ├── playlist/               ← Owner-managed playlists and playlist tracks
+│   └── stream/                 ← User listening sessions
 ├── platform/
 │   ├── config/                 ← Env/config loading via viper
 │   ├── database/               ← pgxpool connection factory
@@ -105,10 +105,19 @@ HTTP request
   → repository_sqlc      dbsqlc.Queries → PostgreSQL
 
   ← repository_sqlc      dbsqlc row → domain type
-  ← service              pgx.ErrNoRows → ErrNotFound (etc.)
-  ← handler              errors.Is → response.NotFound / response.Conflict / …
+  ← service              repository errors → domain sentinel errors
+  ← httperr.Handle       module MapError → response.NotFound / response.Conflict / …
   ← response.*           JSON envelope
 ```
+
+## Playlist Track Ordering
+
+Playlist track positions are unique and non-negative within each playlist.
+
+- `playlist_tracks.position` is required by the API and `position >= 0` is enforced by the database.
+- `(playlist_id, position)` is unique, so a playlist cannot contain two tracks at the same position.
+- Reorder requests must include the exact existing track set for that playlist.
+- Playlist reorder validation and updates run inside one repository transaction with row locks to avoid validating stale track membership.
 
 ## Response Envelope
 

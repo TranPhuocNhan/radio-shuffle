@@ -6,12 +6,13 @@
 
    | File | Responsibility |
    |---|---|
-   | `module.go` | DI wiring: `NewModule()` constructor + `RegisterRoutes(*gin.RouterGroup)` |
-   | `handler.go` | HTTP handlers — binds JSON, delegates to service, maps errors to response helpers |
+   | `module.go` | Route registration: `NewModule()` constructor + `RegisterRoutes(*gin.RouterGroup)` |
+   | `handler.go` | HTTP handlers — binds JSON, delegates to service, returns request/service errors |
    | `service.go` | Business logic — `Service` interface (exported) + `service` struct (unexported) |
    | `repository.go` | Port interfaces + domain structs (`XxxRow`, `CreateInput`, `UpdateInput`) |
    | `repository_sqlc.go` | SQLC-backed implementation of the `Repository` interface |
    | `dto.go` | Request/response structs with `json` and `binding` tags |
+   | `error_mapper.go` | Module/domain error mapping for `httperr.Wrap` |
    | `handler_test.go` | Handler tests using stubs/fakes and `httptest` |
    | `service_test.go` | Service tests using fakes for repository/external deps |
 
@@ -21,10 +22,11 @@
 5. Implement `repository_sqlc.go` wrapping `dbsqlc.Queries`
 6. Define the `Service` interface and business logic in `service.go`
 7. Create DTOs in `dto.go` with `json` + `binding` tags
-8. Write handlers in `handler.go` using `response.*` helpers
-9. Wire everything in `module.go` with `NewModule()` + `RegisterRoutes()`
+8. Write handlers in `handler.go` as `httperr.AppHandler` functions that return errors
+9. Add `error_mapper.go` and wrap routes with `httperr.Wrap(..., MapError)`
 10. Register the module in `cmd/api/main.go`
-11. Write tests for both handler and service layers
+11. Wire concrete repositories/services/handlers in `cmd/api/main.go`; keep `module.go` focused on route registration
+12. Write tests for both handler and service layers
 
 ## Adding a New Migration
 
@@ -79,6 +81,9 @@ make test
 # or equivalently:
 go test -race ./...
 
+# Run full validation sequence
+make verify
+
 # Run tests for a single module
 go test -race ./internal/module/auth/...
 
@@ -92,6 +97,21 @@ go test -race -v ./internal/module/auth/...
 - ALWAYS run `go build ./...` before running tests
 - ALWAYS use `-race` to catch data races
 - If a test needs a live database, it belongs in `test/integration/`, not alongside unit tests
+
+### Integration Tests
+
+```bash
+# Start integration dependencies
+make integration-up
+
+# Run integration tests
+export DATABASE_URL=postgres://root@localhost:5432/radio_shuffle?sslmode=disable
+export RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+make test-integration
+
+# Tear down dependencies
+make integration-down
+```
 
 ### SQLC Regeneration
 
@@ -108,7 +128,12 @@ Then verify the generated output compiles: `go build ./pkg/dbsqlc/...`
 | Command | Description |
 |---|---|
 | `make run` | Start the API server (`go run ./cmd/api`) |
+| `make verify` | Run compile, vet, and race tests in required order |
 | `make test` | Run all tests with race detection |
+| `make test-unit` | Run race-tested unit/module tests only |
+| `make test-integration` | Run race-tested integration tests in `test/integration` |
+| `make integration-up` | Start Postgres + RabbitMQ via Docker Compose |
+| `make integration-down` | Stop Docker Compose integration services |
 | `make tidy` | Run `go mod tidy` |
 | `make sqlc` | Regenerate SQLC code from `db/query/*.sql` |
 | `make migrate-up` | Apply all pending database migrations |
