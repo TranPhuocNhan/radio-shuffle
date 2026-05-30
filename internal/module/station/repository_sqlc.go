@@ -2,9 +2,11 @@ package station
 
 import (
 	"context"
+	"errors"
 
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -51,6 +53,9 @@ func (r *sqlcRepository) Create(ctx context.Context, in CreateInput) (Station, e
 func (r *sqlcRepository) GetByID(ctx context.Context, id int64) (Station, error) {
 	s, err := r.q.GetStationByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Station{}, ErrRepoNotFound
+		}
 		return Station{}, err
 	}
 	return stationFromDB(s), nil
@@ -87,6 +92,9 @@ func (r *sqlcRepository) Update(ctx context.Context, in UpdateInput) (Station, e
 		OwnerID:       in.OwnerID,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Station{}, ErrRepoNotFound
+		}
 		return Station{}, err
 	}
 	return stationFromDB(s), nil

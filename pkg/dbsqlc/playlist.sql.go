@@ -7,12 +7,13 @@ package dbsqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const AddTrackToPlaylist = `-- name: AddTrackToPlaylist :exec
 INSERT INTO playlist_tracks (playlist_id, track_id, position)
 VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING
 `
 
 type AddTrackToPlaylistParams struct {
@@ -24,6 +25,17 @@ type AddTrackToPlaylistParams struct {
 func (q *Queries) AddTrackToPlaylist(ctx context.Context, arg AddTrackToPlaylistParams) error {
 	_, err := q.db.Exec(ctx, AddTrackToPlaylist, arg.PlaylistID, arg.TrackID, arg.Position)
 	return err
+}
+
+const CountPlaylistTracks = `-- name: CountPlaylistTracks :one
+SELECT COUNT(*)::bigint FROM playlist_tracks WHERE playlist_id = $1
+`
+
+func (q *Queries) CountPlaylistTracks(ctx context.Context, playlistID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, CountPlaylistTracks, playlistID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const CountPlaylistsOwnedBy = `-- name: CountPlaylistsOwnedBy :one
@@ -98,23 +110,70 @@ func (q *Queries) GetPlaylistByID(ctx context.Context, id int64) (Playlists, err
 	return i, err
 }
 
-const ListPlaylistTracks = `-- name: ListPlaylistTracks :many
-SELECT t.id, t.station_id, t.title, t.artist, t.audio_url, t.duration_seconds, t.created_at, t.updated_at
-FROM playlist_tracks pt
-JOIN tracks t ON t.id = pt.track_id
-WHERE pt.playlist_id = $1
-ORDER BY pt.position ASC, pt.track_id ASC
+const ListPlaylistTrackIDsForUpdate = `-- name: ListPlaylistTrackIDsForUpdate :many
+SELECT track_id
+FROM playlist_tracks
+WHERE playlist_id = $1
+ORDER BY track_id ASC
+FOR UPDATE
 `
 
-func (q *Queries) ListPlaylistTracks(ctx context.Context, playlistID int64) ([]Tracks, error) {
-	rows, err := q.db.Query(ctx, ListPlaylistTracks, playlistID)
+func (q *Queries) ListPlaylistTrackIDsForUpdate(ctx context.Context, playlistID int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, ListPlaylistTrackIDsForUpdate, playlistID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Tracks
+	var items []int64
 	for rows.Next() {
-		var i Tracks
+		var track_id int64
+		if err := rows.Scan(&track_id); err != nil {
+			return nil, err
+		}
+		items = append(items, track_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ListPlaylistTracks = `-- name: ListPlaylistTracks :many
+SELECT t.id, t.station_id, t.title, t.artist, t.audio_url, t.duration_seconds, t.created_at, t.updated_at, pt.position
+FROM playlist_tracks pt
+JOIN tracks t ON t.id = pt.track_id
+WHERE pt.playlist_id = $1
+ORDER BY pt.position ASC, pt.track_id ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListPlaylistTracksParams struct {
+	PlaylistID int64 `json:"playlist_id"`
+	Limit      int32 `json:"limit"`
+	Offset     int32 `json:"offset"`
+}
+
+type ListPlaylistTracksRow struct {
+	ID              int64              `json:"id"`
+	StationID       int64              `json:"station_id"`
+	Title           string             `json:"title"`
+	Artist          string             `json:"artist"`
+	AudioUrl        string             `json:"audio_url"`
+	DurationSeconds int32              `json:"duration_seconds"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Position        int32              `json:"position"`
+}
+
+func (q *Queries) ListPlaylistTracks(ctx context.Context, arg ListPlaylistTracksParams) ([]ListPlaylistTracksRow, error) {
+	rows, err := q.db.Query(ctx, ListPlaylistTracks, arg.PlaylistID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlaylistTracksRow
+	for rows.Next() {
+		var i ListPlaylistTracksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.StationID,
@@ -124,6 +183,7 @@ func (q *Queries) ListPlaylistTracks(ctx context.Context, playlistID int64) ([]T
 			&i.DurationSeconds,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -218,6 +278,51 @@ func (q *Queries) ListPublicPlaylists(ctx context.Context, arg ListPublicPlaylis
 	return items, nil
 }
 
+const LockPlaylistForUpdate = `-- name: LockPlaylistForUpdate :one
+SELECT id
+FROM playlists
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) LockPlaylistForUpdate(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, LockPlaylistForUpdate, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const MaxPlaylistTrackPosition = `-- name: MaxPlaylistTrackPosition :one
+SELECT COALESCE(MAX(position), -1)::int
+FROM playlist_tracks
+WHERE playlist_id = $1
+`
+
+func (q *Queries) MaxPlaylistTrackPosition(ctx context.Context, playlistID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, MaxPlaylistTrackPosition, playlistID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const RemoveTrackFromPlaylist = `-- name: RemoveTrackFromPlaylist :one
+DELETE FROM playlist_tracks
+WHERE playlist_id = $1 AND track_id = $2
+RETURNING track_id
+`
+
+type RemoveTrackFromPlaylistParams struct {
+	PlaylistID int64 `json:"playlist_id"`
+	TrackID    int64 `json:"track_id"`
+}
+
+func (q *Queries) RemoveTrackFromPlaylist(ctx context.Context, arg RemoveTrackFromPlaylistParams) (int64, error) {
+	row := q.db.QueryRow(ctx, RemoveTrackFromPlaylist, arg.PlaylistID, arg.TrackID)
+	var track_id int64
+	err := row.Scan(&track_id)
+	return track_id, err
+}
+
 const UpdatePlaylist = `-- name: UpdatePlaylist :one
 UPDATE playlists SET
     name = $2,
@@ -253,4 +358,24 @@ func (q *Queries) UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const UpdatePlaylistTrackPosition = `-- name: UpdatePlaylistTrackPosition :one
+UPDATE playlist_tracks
+SET position = $3
+WHERE playlist_id = $1 AND track_id = $2
+RETURNING track_id
+`
+
+type UpdatePlaylistTrackPositionParams struct {
+	PlaylistID int64 `json:"playlist_id"`
+	TrackID    int64 `json:"track_id"`
+	Position   int32 `json:"position"`
+}
+
+func (q *Queries) UpdatePlaylistTrackPosition(ctx context.Context, arg UpdatePlaylistTrackPositionParams) (int64, error) {
+	row := q.db.QueryRow(ctx, UpdatePlaylistTrackPosition, arg.PlaylistID, arg.TrackID, arg.Position)
+	var track_id int64
+	err := row.Scan(&track_id)
+	return track_id, err
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // fakeRepo is a minimal in-memory substitute for Repository in handler tests.
@@ -40,7 +41,7 @@ func TestHandler_List_Empty(t *testing.T) {
 	repo := &fakeRepo{}
 	h := NewHandler(NewService(repo))
 	r := gin.New()
-	r.GET("/radio-browser/stations", h.List)
+	r.GET("/radio-browser/stations", httperr.Wrap(h.List, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/radio-browser/stations", http.NoBody)
 	w := httptest.NewRecorder()
@@ -80,7 +81,7 @@ func TestHandler_List_Filters(t *testing.T) {
 	repo := &fakeRepo{}
 	h := NewHandler(NewService(repo))
 	r := gin.New()
-	r.GET("/radio-browser/stations", h.List)
+	r.GET("/radio-browser/stations", httperr.Wrap(h.List, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/radio-browser/stations?name=Jazz&country=France&language=French", http.NoBody)
 	w := httptest.NewRecorder()

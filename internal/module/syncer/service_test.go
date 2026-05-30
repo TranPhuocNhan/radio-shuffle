@@ -22,6 +22,26 @@ func (f *fakeRepo) UpsertBatch(_ context.Context, stations []UpsertInput) (int64
 	return int64(len(stations)), nil
 }
 
+func (f *fakeRepo) CreateSyncJob(_ context.Context, _ CreateSyncJobInput) error {
+	return errors.New("unexpected CreateSyncJob")
+}
+
+func (f *fakeRepo) GetSyncJob(_ context.Context, _ string) (SyncJob, error) {
+	return SyncJob{}, errors.New("unexpected GetSyncJob")
+}
+
+func (f *fakeRepo) MarkSyncJobRunning(_ context.Context, _ string) error {
+	return errors.New("unexpected MarkSyncJobRunning")
+}
+
+func (f *fakeRepo) MarkSyncJobCompleted(_ context.Context, _ string) error {
+	return errors.New("unexpected MarkSyncJobCompleted")
+}
+
+func (f *fakeRepo) MarkSyncJobFailed(_ context.Context, _ string, _ string) error {
+	return errors.New("unexpected MarkSyncJobFailed")
+}
+
 // fakeClient replaces the radiobrowser.Client in tests.
 type fakeClient struct {
 	pages [][]radiobrowser.Station

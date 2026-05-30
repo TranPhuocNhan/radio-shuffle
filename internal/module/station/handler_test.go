@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 )
 
@@ -40,7 +40,7 @@ func (s stubRepo) GetByID(ctx context.Context, id int64) (Station, error) {
 	if s.getByID != nil {
 		return s.getByID(ctx, id)
 	}
-	return Station{}, pgx.ErrNoRows
+	return Station{}, ErrRepoNotFound
 }
 
 func (s stubRepo) List(ctx context.Context, limit int64, offset int64) ([]Station, error) {
@@ -125,7 +125,7 @@ func TestHandler_List_Empty(t *testing.T) {
 	repo := stubRepo{}
 	h := NewHandler(NewService(repo))
 	r := gin.New()
-	r.GET("/stations", h.List)
+	r.GET("/stations", httperr.Wrap(h.List, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/stations", http.NoBody)
 	w := httptest.NewRecorder()
@@ -165,7 +165,7 @@ func TestHandler_GetByID_NotFound(t *testing.T) {
 	repo := stubRepo{}
 	h := NewHandler(NewService(repo))
 	r := gin.New()
-	r.GET("/stations/:station_id", h.GetByID)
+	r.GET("/stations/:station_id", httperr.Wrap(h.GetByID, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/stations/999", http.NoBody)
 	w := httptest.NewRecorder()
@@ -202,7 +202,7 @@ func TestHandler_Follow_OK(t *testing.T) {
 	h := NewHandler(NewService(repo))
 	r := gin.New()
 	r.Use(withUser(5))
-	r.POST("/stations/:station_id/follow", h.Follow)
+	r.POST("/stations/:station_id/follow", httperr.Wrap(h.Follow, MapError))
 
 	req := httptest.NewRequest(http.MethodPost, "/stations/10/follow", http.NoBody)
 	w := httptest.NewRecorder()
@@ -224,7 +224,7 @@ func TestHandler_IsFollowing_OK(t *testing.T) {
 	h := NewHandler(NewService(repo))
 	r := gin.New()
 	r.Use(withUser(5))
-	r.GET("/stations/:station_id/following", h.IsFollowing)
+	r.GET("/stations/:station_id/following", httperr.Wrap(h.IsFollowing, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/stations/10/following", http.NoBody)
 	w := httptest.NewRecorder()
@@ -258,7 +258,7 @@ func TestHandler_ListFollowed_Empty(t *testing.T) {
 	h := NewHandler(NewService(repo))
 	r := gin.New()
 	r.Use(withUser(5))
-	r.GET("/stations/followed", h.ListFollowed)
+	r.GET("/stations/followed", httperr.Wrap(h.ListFollowed, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/stations/followed", http.NoBody)
 	w := httptest.NewRecorder()
@@ -299,7 +299,7 @@ func TestHandler_CountFollowers_OK(t *testing.T) {
 	h := NewHandler(NewService(repo))
 	r := gin.New()
 	r.Use(withUser(5))
-	r.GET("/stations/:station_id/followers/count", h.CountFollowers)
+	r.GET("/stations/:station_id/followers/count", httperr.Wrap(h.CountFollowers, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/stations/10/followers/count", http.NoBody)
 	w := httptest.NewRecorder()
@@ -321,4 +321,3 @@ func TestHandler_CountFollowers_OK(t *testing.T) {
 		t.Fatalf("expected count 2, got %d", envelope.Data.Count)
 	}
 }
-

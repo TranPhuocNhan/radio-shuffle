@@ -3,12 +3,13 @@ package track
 import (
 	"context"
 	"errors"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // Sentinel errors for HTTP mapping in handlers.
-var ErrNotFound = errors.New("track not found")
+var (
+	ErrNotFound        = errors.New("track not found")
+	ErrStationNotFound = errors.New("station not found")
+)
 
 const (
 	defaultListLimit = 20
@@ -53,21 +54,25 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) Create(ctx context.Context, in CreateTrackInput) (Track, error) {
-	return s.repo.Create(ctx, CreateInput{
+	track, err := s.repo.Create(ctx, CreateInput{
 		StationID:       in.StationID,
 		Title:           in.Title,
 		Artist:          in.Artist,
 		AudioUrl:        in.AudioUrl,
 		DurationSeconds: in.DurationSeconds,
 	})
+	if err != nil {
+		if errors.Is(err, ErrRepoStationNotFound) {
+			return Track{}, ErrStationNotFound
+		}
+		return Track{}, err
+	}
+	return track, nil
 }
 
 func (s *service) GetByID(ctx context.Context, id int64) (Track, error) {
-	track, err := s.repo.GetByID(ctx, id)
+	track, err := s.getByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Track{}, ErrNotFound
-		}
 		return Track{}, err
 	}
 	return track, nil
@@ -86,11 +91,8 @@ func (s *service) List(ctx context.Context, stationID, limit, offset int64) ([]T
 }
 
 func (s *service) Update(ctx context.Context, id, stationID int64, req UpdateTrackInput) (Track, error) {
-	prev, err := s.repo.GetByID(ctx, id)
+	prev, err := s.getByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Track{}, ErrNotFound
-		}
 		return Track{}, err
 	}
 	// Read-then-merge: only overwrite fields supplied by the caller.
@@ -116,7 +118,7 @@ func (s *service) Update(ctx context.Context, id, stationID int64, req UpdateTra
 	}
 	track, err := s.repo.Update(ctx, merged)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoNotFound) {
 			return Track{}, ErrNotFound
 		}
 		return Track{}, err
@@ -125,12 +127,20 @@ func (s *service) Update(ctx context.Context, id, stationID int64, req UpdateTra
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
-	_, err := s.repo.GetByID(ctx, id)
+	_, err := s.getByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
 		return err
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *service) getByID(ctx context.Context, id int64) (Track, error) {
+	track, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, ErrRepoNotFound) {
+			return Track{}, ErrNotFound
+		}
+		return Track{}, err
+	}
+	return track, nil
 }

@@ -2,8 +2,7 @@ package station
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // Module wires station HTTP routes.
@@ -13,14 +12,10 @@ type Module struct {
 }
 
 // NewModule constructs a station Module.
-// signingKey and issuer are required to build the AuthRequired middleware for
-// follow endpoints.
-func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
-	repo := NewRepository(pool)
-	svc := NewService(repo)
+func NewModule(h *Handler, authMw gin.HandlerFunc) *Module {
 	return &Module{
-		h:      NewHandler(svc),
-		authMw: plmw.AuthRequired(signingKey, issuer),
+		h:      h,
+		authMw: authMw,
 	}
 }
 
@@ -28,16 +23,16 @@ func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
 func (m *Module) RegisterRoutes(api *gin.RouterGroup) {
 	g := api.Group("/stations")
 	{
-		g.POST("", m.h.Create)
-		g.GET("", m.h.List)
-		g.GET("/:station_id", m.h.GetByID)
-		g.PATCH("/:station_id", m.h.Update)
-		g.DELETE("/:station_id", m.h.Delete)
+		g.POST("", httperr.Wrap(m.h.Create, MapError))
+		g.GET("", httperr.Wrap(m.h.List, MapError))
+		g.GET("/:station_id", httperr.Wrap(m.h.GetByID, MapError))
+		g.PATCH("/:station_id", httperr.Wrap(m.h.Update, MapError))
+		g.DELETE("/:station_id", httperr.Wrap(m.h.Delete, MapError))
 
-		g.POST("/:station_id/follow", m.authMw, m.h.Follow)
-		g.DELETE("/:station_id/follow", m.authMw, m.h.Unfollow)
-		g.GET("/:station_id/following", m.authMw, m.h.IsFollowing)
-		g.GET("/:station_id/followers/count", m.authMw, m.h.CountFollowers)
-		g.GET("/followed", m.authMw, m.h.ListFollowed)
+		g.POST("/:station_id/follow", m.authMw, httperr.Wrap(m.h.Follow, MapError))
+		g.DELETE("/:station_id/follow", m.authMw, httperr.Wrap(m.h.Unfollow, MapError))
+		g.GET("/:station_id/following", m.authMw, httperr.Wrap(m.h.IsFollowing, MapError))
+		g.GET("/:station_id/followers/count", m.authMw, httperr.Wrap(m.h.CountFollowers, MapError))
+		g.GET("/followed", m.authMw, httperr.Wrap(m.h.ListFollowed, MapError))
 	}
 }

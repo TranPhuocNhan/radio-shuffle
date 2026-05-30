@@ -1,10 +1,10 @@
 package station
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
@@ -21,48 +21,40 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Create(c *gin.Context) {
+func (h *Handler) Create(c *gin.Context) error {
 	var req CreateStationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	station, err := h.svc.Create(c.Request.Context(), toCreateStationInput(req))
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusCreated, toStationResponse(station))
+	return nil
 }
 
-func (h *Handler) GetByID(c *gin.Context) {
+func (h *Handler) GetByID(c *gin.Context) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	out, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toStationResponse(out))
+	return nil
 }
 
-func (h *Handler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) error {
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		response.BadRequest(c, "invalid limit")
-		return
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		response.BadRequest(c, "invalid offset")
-		return
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.List(c.Request.Context(), ListStationsInput{
@@ -70,8 +62,7 @@ func (h *Handler) List(c *gin.Context) {
 		Offset: offset,
 	})
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	responses := make([]StationResponse, 0, len(items))
 	for _, station := range items {
@@ -82,141 +73,108 @@ func (h *Handler) List(c *gin.Context) {
 		page = int(offset/limit) + 1
 	}
 	response.Paginated(c, http.StatusOK, responses, page, int(limit), total)
+	return nil
 }
 
-func (h *Handler) Update(c *gin.Context) {
+func (h *Handler) Update(c *gin.Context) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	var req UpdateStationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	out, err := h.svc.Update(c.Request.Context(), toUpdateStationInput(id, req))
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toStationResponse(out))
+	return nil
 }
 
-func (h *Handler) Delete(c *gin.Context) {
+func (h *Handler) Delete(c *gin.Context) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	c.Status(http.StatusNoContent)
+	return nil
 }
 
-func (h *Handler) Follow(c *gin.Context) {
+func (h *Handler) Follow(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	stationID, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	if err := h.svc.Follow(c.Request.Context(), userID, stationID); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	c.Status(http.StatusNoContent)
+	return nil
 }
 
-func (h *Handler) Unfollow(c *gin.Context) {
+func (h *Handler) Unfollow(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	stationID, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	if err := h.svc.Unfollow(c.Request.Context(), userID, stationID); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	c.Status(http.StatusNoContent)
+	return nil
 }
 
-func (h *Handler) IsFollowing(c *gin.Context) {
+func (h *Handler) IsFollowing(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	stationID, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	following, err := h.svc.IsFollowing(c.Request.Context(), userID, stationID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, FollowStatusResponse{Following: following})
+	return nil
 }
 
-func (h *Handler) ListFollowed(c *gin.Context) {
+func (h *Handler) ListFollowed(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		response.BadRequest(c, "invalid limit")
-		return
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		response.BadRequest(c, "invalid offset")
-		return
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	total, err := h.svc.CountFollowedStations(c.Request.Context(), userID)
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	items, err := h.svc.GetFollowedStations(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	responses := make([]StationResponse, 0, len(items))
 	for _, station := range items {
@@ -227,24 +185,20 @@ func (h *Handler) ListFollowed(c *gin.Context) {
 		page = int(offset/limit) + 1
 	}
 	response.Paginated(c, http.StatusOK, responses, page, int(limit), total)
+	return nil
 }
 
-func (h *Handler) CountFollowers(c *gin.Context) {
+func (h *Handler) CountFollowers(c *gin.Context) error {
 	stationID, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	count, err := h.svc.CountFollowers(c.Request.Context(), stationID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "station not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, FollowersCountResponse{Count: count})
+	return nil
 }
 
 func parseIDParam(c *gin.Context) (int64, error) {

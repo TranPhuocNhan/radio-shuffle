@@ -2,9 +2,12 @@ package track
 
 import (
 	"context"
+	"errors"
 
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -41,7 +44,7 @@ func (r *sqlcRepository) Create(ctx context.Context, in CreateInput) (Track, err
 		DurationSeconds: in.DurationSeconds,
 	})
 	if err != nil {
-		return Track{}, err
+		return Track{}, mapPgError(err)
 	}
 	return rowFromDB(t), nil
 }
@@ -49,7 +52,7 @@ func (r *sqlcRepository) Create(ctx context.Context, in CreateInput) (Track, err
 func (r *sqlcRepository) GetByID(ctx context.Context, id int64) (Track, error) {
 	t, err := r.q.GetTrackByID(ctx, id)
 	if err != nil {
-		return Track{}, err
+		return Track{}, mapNoRowsOrPgError(err)
 	}
 	return rowFromDB(t), nil
 }
@@ -84,11 +87,31 @@ func (r *sqlcRepository) Update(ctx context.Context, in UpdateInput) (Track, err
 		DurationSeconds: in.DurationSeconds,
 	})
 	if err != nil {
-		return Track{}, err
+		return Track{}, mapNoRowsOrPgError(err)
 	}
 	return rowFromDB(t), nil
 }
 
 func (r *sqlcRepository) Delete(ctx context.Context, id int64) error {
 	return r.q.DeleteTrack(ctx, id)
+}
+
+func mapNoRowsOrPgError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrRepoNotFound
+	}
+	return mapPgError(err)
+}
+
+func mapPgError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23503" && pgErr.ConstraintName == "tracks_station_id_fkey" {
+			return ErrRepoStationNotFound
+		}
+	}
+	return err
 }

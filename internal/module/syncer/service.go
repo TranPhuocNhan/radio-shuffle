@@ -25,7 +25,7 @@ type service struct {
 	client *radiobrowser.Client
 }
 
-func newService(repo Repository, client *radiobrowser.Client) Service {
+func NewService(repo Repository, client *radiobrowser.Client) Service {
 	return &service{repo: repo, client: client}
 }
 

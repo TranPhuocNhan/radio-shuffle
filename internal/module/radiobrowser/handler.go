@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
@@ -20,19 +21,17 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) error {
 	name := strings.TrimSpace(c.Query("name"))
 	country := strings.TrimSpace(c.Query("country"))
 	language := strings.TrimSpace(c.Query("language"))
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		response.BadRequest(c, "invalid limit")
-		return
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		response.BadRequest(c, "invalid offset")
-		return
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.List(c.Request.Context(), ListStationsInput{
@@ -43,8 +42,7 @@ func (h *Handler) List(c *gin.Context) {
 		Offset:   offset,
 	})
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	responses := make([]StationResponse, 0, len(items))
 	for _, station := range items {
@@ -55,6 +53,7 @@ func (h *Handler) List(c *gin.Context) {
 		page = int(offset/limit) + 1
 	}
 	response.Paginated(c, http.StatusOK, responses, page, int(limit), total)
+	return nil
 }
 
 func parseQueryInt64(c *gin.Context, key string, defaultVal int64) (int64, error) {

@@ -14,11 +14,13 @@ import (
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/radiobrowser"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/station"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/stream"
+	"github.com/tranphuocnhan/radio-shuffle/internal/module/syncer"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/user"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/database"
 	plhealth "github.com/tranphuocnhan/radio-shuffle/internal/platform/health"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mq"
 	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/internal/router"
 
@@ -43,6 +45,26 @@ func main() {
 	}
 	defer stopPool()
 
+	mqClient, err := mq.New(mq.Config{
+		URL:           cfg.RabbitMQURL,
+		Exchange:      cfg.SyncEventsExchange,
+		Queue:         cfg.SyncQueue,
+		RetryQueue:    cfg.SyncRetryQueue,
+		DLQ:           cfg.SyncDLQ,
+		RetryTTLMS:    cfg.SyncRetryTTLMS,
+		MaxRetries:    cfg.SyncMaxRetries,
+		MainRouteKey:  "sync.requested",
+		RetryRouteKey: "sync.requested.retry",
+		DLQRouteKey:   "sync.requested.dlq",
+	})
+	if err != nil {
+		slog.Error("rabbitmq connect failed", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		_ = mqClient.Close()
+	}()
+
 	gin.SetMode(cfg.GinMode())
 	r := gin.New()
 	r.Use(plmw.RequestID(), plmw.Recover(), plmw.LoggerStructured())
@@ -63,16 +85,56 @@ func main() {
 	userRepo := user.NewRepository(pool)
 	authUsers := authadapters.NewAuthUserAdapter(userRepo)
 	authTokens := auth.NewTokenRepository(pool)
+	authSvc := auth.NewService(authUsers, authUsers, authTokens, auth.Config{
+		SigningKey: []byte(cfg.JWTSigningKey),
+		Issuer:     cfg.JWTIssuer,
+		AccessTTL:  cfg.AccessTTL(),
+		RefreshTTL: cfg.RefreshTTL(),
+	}, nil)
+	authHandler := auth.NewHandler(authSvc)
+	authModule := auth.NewModule(authHandler)
+	playlistRepo := playlist.NewRepository(pool)
+	playlistSvc := playlist.NewService(playlistRepo)
+	playlistHandler := playlist.NewHandler(playlistSvc)
+	playlistAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
+	playlistModule := playlist.NewModule(playlistHandler, playlistAuthMw)
+	stationRepo := station.NewRepository(pool)
+	stationSvc := station.NewService(stationRepo)
+	stationHandler := station.NewHandler(stationSvc)
+	stationAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
+	stationModule := station.NewModule(stationHandler, stationAuthMw)
+	streamRepo := stream.NewRepository(pool)
+	streamSvc := stream.NewService(streamRepo)
+	streamHandler := stream.NewHandler(streamSvc)
+	streamAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
+	streamModule := stream.NewModule(streamHandler, streamAuthMw)
+	radioBrowserRepo := radiobrowser.NewRepository(pool)
+	radioBrowserSvc := radiobrowser.NewService(radioBrowserRepo)
+	radioBrowserHandler := radiobrowser.NewHandler(radioBrowserSvc)
+	radioBrowserModule := radiobrowser.NewModule(radioBrowserHandler)
+	trackRepo := track.NewRepository(pool)
+	trackSvc := track.NewService(trackRepo)
+	trackHandler := track.NewHandler(trackSvc)
+	trackAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
+	trackModule := track.NewModule(trackHandler, trackAuthMw)
+	syncerRepo := syncer.NewRepository(pool)
+	syncerPublisher := syncer.NewPublisher(mqClient, "sync.requested")
+	syncerJobSvc := syncer.NewJobService(syncerRepo, syncerPublisher)
+	syncerHandler := syncer.NewHandler(syncerJobSvc)
+	syncerAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
+	syncerAdminMw := plmw.AdminRequired()
+	syncerAPIModule := syncer.NewAPIModule(syncerHandler, syncerAuthMw, syncerAdminMw)
 
 	router.Register(
 		api,
-		router.RouteRegistrarFunc(auth.NewModule(&cfg, authUsers, authUsers, authTokens, nil).RegisterRoutes),
+		router.RouteRegistrarFunc(authModule.RegisterRoutes),
 		router.RouteRegistrarFunc(user.RegisterRoutes),
-		router.RouteRegistrarFunc(track.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
-		router.RouteRegistrarFunc(playlist.RegisterRoutes),
-		router.RouteRegistrarFunc(stream.RegisterRoutes),
-		router.RouteRegistrarFunc(station.NewModule(pool, []byte(cfg.JWTSigningKey), cfg.JWTIssuer).RegisterRoutes),
-		router.RouteRegistrarFunc(radiobrowser.NewModule(pool).RegisterRoutes),
+		router.RouteRegistrarFunc(trackModule.RegisterRoutes),
+		router.RouteRegistrarFunc(playlistModule.RegisterRoutes),
+		router.RouteRegistrarFunc(streamModule.RegisterRoutes),
+		router.RouteRegistrarFunc(stationModule.RegisterRoutes),
+		router.RouteRegistrarFunc(syncerAPIModule.RegisterRoutes),
+		router.RouteRegistrarFunc(radioBrowserModule.RegisterRoutes),
 	)
 
 	srv := router.NewServer(&cfg, r)

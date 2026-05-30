@@ -2,7 +2,13 @@ package station
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrRepoNotFound indicates that the repository could not find a requested row.
+	ErrRepoNotFound = errors.New("station repository: not found")
 )
 
 // Station is the domain representation of a station.

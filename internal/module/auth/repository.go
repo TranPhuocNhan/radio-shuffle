@@ -2,7 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrUserNotFound         = errors.New("auth repository: user not found")
+	ErrRefreshTokenNotFound = errors.New("auth repository: refresh token not found")
 )
 
 // UserReader fetches user data needed by auth.

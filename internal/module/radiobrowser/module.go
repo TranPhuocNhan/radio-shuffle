@@ -2,7 +2,7 @@ package radiobrowser
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // Module wires radio browser station HTTP routes.
@@ -11,16 +11,14 @@ type Module struct {
 }
 
 // NewModule constructs a radio browser Module.
-func NewModule(pool *pgxpool.Pool) *Module {
-	repo := NewRepository(pool)
-	svc := NewService(repo)
-	return &Module{h: NewHandler(svc)}
+func NewModule(h *Handler) *Module {
+	return &Module{h: h}
 }
 
 // RegisterRoutes mounts /radio-browser/stations under api.
 func (m *Module) RegisterRoutes(api *gin.RouterGroup) {
 	g := api.Group("/radio-browser")
 	{
-		g.GET("/stations", m.h.List)
+		g.GET("/stations", httperr.Wrap(m.h.List, MapError))
 	}
 }

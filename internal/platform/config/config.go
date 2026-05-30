@@ -39,6 +39,14 @@ type Config struct {
 
 	SyncIntervalStr     string
 	RadioBrowserBaseURL string
+
+	RabbitMQURL       string
+	SyncEventsExchange string
+	SyncQueue          string
+	SyncRetryQueue     string
+	SyncDLQ            string
+	SyncRetryTTLMS     int
+	SyncMaxRetries     int
 }
 
 func (c Config) ShutdownTimeout() time.Duration {
@@ -89,6 +97,9 @@ func Load() (Config, error) {
 	if cfg.JWTSigningKey == "" {
 		return Config{}, errors.New("JWT_SIGNING_KEY is required")
 	}
+	if cfg.RabbitMQURL == "" {
+		return Config{}, errors.New("RABBITMQ_URL is required")
+	}
 	return cfg, nil
 }
 
@@ -97,6 +108,9 @@ func LoadSyncer() (Config, error) {
 	cfg := loadBase()
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
+	}
+	if cfg.RabbitMQURL == "" {
+		return Config{}, errors.New("RABBITMQ_URL is required")
 	}
 	return cfg, nil
 }
@@ -127,6 +141,12 @@ func loadBase() Config {
 		CookieSameSite:           "Lax",
 		CookieRefreshName:       "refresh_token",
 		SyncIntervalStr:         "6h",
+		SyncEventsExchange:      "sync.events",
+		SyncQueue:               "syncer.jobs",
+		SyncRetryQueue:          "syncer.jobs.retry",
+		SyncDLQ:                 "syncer.jobs.dlq",
+		SyncRetryTTLMS:          60000,
+		SyncMaxRetries:          5,
 	}
 
 	cfg.Env = firstNonEmpty(v.GetString("APP_ENV"), getenv("APP_ENV"), "development")
@@ -158,6 +178,14 @@ func loadBase() Config {
 	cfg.SyncIntervalStr = firstNonEmpty(v.GetString("SYNC_INTERVAL"), getenv("SYNC_INTERVAL"), cfg.SyncIntervalStr)
 	cfg.RadioBrowserBaseURL = firstNonEmpty(v.GetString("RADIO_BROWSER_BASE_URL"), getenv("RADIO_BROWSER_BASE_URL"))
 
+	cfg.RabbitMQURL = firstNonEmpty(v.GetString("RABBITMQ_URL"), getenv("RABBITMQ_URL"))
+	cfg.SyncEventsExchange = firstNonEmpty(v.GetString("SYNC_EVENTS_EXCHANGE"), getenv("SYNC_EVENTS_EXCHANGE"), cfg.SyncEventsExchange)
+	cfg.SyncQueue = firstNonEmpty(v.GetString("SYNC_QUEUE"), getenv("SYNC_QUEUE"), cfg.SyncQueue)
+	cfg.SyncRetryQueue = firstNonEmpty(v.GetString("SYNC_RETRY_QUEUE"), getenv("SYNC_RETRY_QUEUE"), cfg.SyncRetryQueue)
+	cfg.SyncDLQ = firstNonEmpty(v.GetString("SYNC_DLQ"), getenv("SYNC_DLQ"), cfg.SyncDLQ)
+	cfg.SyncRetryTTLMS = atoiDef(firstNonEmpty(v.GetString("SYNC_RETRY_TTL_MS"), getenv("SYNC_RETRY_TTL_MS")), cfg.SyncRetryTTLMS)
+	cfg.SyncMaxRetries = atoiDef(firstNonEmpty(v.GetString("SYNC_MAX_RETRIES"), getenv("SYNC_MAX_RETRIES")), cfg.SyncMaxRetries)
+
 	return cfg
 }
 
@@ -167,6 +195,14 @@ func (c Config) SyncInterval() time.Duration {
 		return 6 * time.Hour
 	}
 	return d
+}
+
+func (c Config) SyncRetryTTL() time.Duration {
+	ms := c.SyncRetryTTLMS
+	if ms <= 0 {
+		ms = 60000
+	}
+	return time.Duration(ms) * time.Millisecond
 }
 
 func (c Config) GinMode() string {

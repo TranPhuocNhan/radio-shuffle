@@ -2,25 +2,20 @@ package track
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // Module wires track HTTP routes.
 type Module struct {
-	h          *Handler
-	authMw     gin.HandlerFunc
+	h      *Handler
+	authMw gin.HandlerFunc
 }
 
 // NewModule constructs a track Module.
-// signingKey and issuer are required to build the AuthRequired middleware for
-// write endpoints (POST, PATCH, DELETE).
-func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
-	repo := NewRepository(pool)
-	svc := NewService(repo)
+func NewModule(h *Handler, authMw gin.HandlerFunc) *Module {
 	return &Module{
-		h:      NewHandler(svc),
-		authMw: plmw.AuthRequired(signingKey, issuer),
+		h:      h,
+		authMw: authMw,
 	}
 }
 
@@ -30,12 +25,12 @@ func (m *Module) RegisterRoutes(api *gin.RouterGroup) {
 	g := api.Group("/stations/:station_id/tracks")
 	{
 		// Public reads
-		g.GET("", m.h.List)
-		g.GET("/:id", m.h.GetByID)
+		g.GET("", httperr.Wrap(m.h.List, MapError))
+		g.GET("/:id", httperr.Wrap(m.h.GetByID, MapError))
 
 		// Authenticated writes
-		g.POST("", m.authMw, m.h.Create)
-		g.PATCH("/:id", m.authMw, m.h.Update)
-		g.DELETE("/:id", m.authMw, m.h.Delete)
+		g.POST("", m.authMw, httperr.Wrap(m.h.Create, MapError))
+		g.PATCH("/:id", m.authMw, httperr.Wrap(m.h.Update, MapError))
+		g.DELETE("/:id", m.authMw, httperr.Wrap(m.h.Delete, MapError))
 	}
 }

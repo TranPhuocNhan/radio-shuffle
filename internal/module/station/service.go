@@ -3,8 +3,6 @@ package station
 import (
 	"context"
 	"errors"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // Sentinel errors for HTTP mapping in handlers.
@@ -91,11 +89,8 @@ func (s *service) Create(ctx context.Context, params CreateStationInput) (Statio
 }
 
 func (s *service) GetByID(ctx context.Context, id int64) (Station, error) {
-	row, err := s.repo.GetByID(ctx, id)
+	row, err := s.getByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Station{}, ErrNotFound
-		}
 		return Station{}, err
 	}
 	return row, nil
@@ -114,11 +109,8 @@ func (s *service) List(ctx context.Context, filter ListStationsInput) ([]Station
 }
 
 func (s *service) Update(ctx context.Context, input UpdateStationInput) (Station, error) {
-	prev, err := s.repo.GetByID(ctx, input.ID)
+	prev, err := s.getByID(ctx, input.ID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Station{}, ErrNotFound
-		}
 		return Station{}, err
 	}
 	merged := UpdateInput{
@@ -154,7 +146,7 @@ func (s *service) Update(ctx context.Context, input UpdateStationInput) (Station
 	}
 	row, err := s.repo.Update(ctx, merged)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoNotFound) {
 			return Station{}, ErrNotFound
 		}
 		return Station{}, err
@@ -163,11 +155,8 @@ func (s *service) Update(ctx context.Context, input UpdateStationInput) (Station
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
-	_, err := s.repo.GetByID(ctx, id)
+	_, err := s.getByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
 		return err
 	}
 	return s.repo.Delete(ctx, id)
@@ -213,12 +202,20 @@ func (s *service) CountFollowers(ctx context.Context, stationID int64) (int64, e
 }
 
 func (s *service) ensureStationExists(ctx context.Context, stationID int64) error {
-	_, err := s.repo.GetByID(ctx, stationID)
+	_, err := s.getByID(ctx, stationID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
 		return err
 	}
 	return nil
+}
+
+func (s *service) getByID(ctx context.Context, id int64) (Station, error) {
+	row, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, ErrRepoNotFound) {
+			return Station{}, ErrNotFound
+		}
+		return Station{}, err
+	}
+	return row, nil
 }
