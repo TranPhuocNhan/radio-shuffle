@@ -1,0 +1,171 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - "v*.*.*"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Environment to promote
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build, Vet, Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: radio_shuffle
+          POSTGRES_USER: root
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d radio_shuffle"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://root@localhost:5432/radio_shuffle?sslmode=disable
+      RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+      JWT_SIGNING_KEY: ci-test-signing-key
+      APP_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify compile, vet, and race tests
+        run: make verify
+
+      - name: Integration tests
+        run: make test-integration
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - api
+          - syncer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: radio-shuffle-${{ matrix.target }}:ci
+          build-args: |
+            TARGET=${{ matrix.target }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  development:
+    name: Development
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+      - docker
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'development')
+    environment:
+      name: development
+    env:
+      APP_ENV: development
+
+    steps:
+      - name: Promote development
+        run: |
+          echo "Development environment is ready for deployment."
+          echo "APP_ENV=${APP_ENV}"
+
+  staging:
+    name: Staging
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+      - docker
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'staging')
+    environment:
+      name: staging
+    env:
+      APP_ENV: staging
+
+    steps:
+      - name: Promote staging
+        run: |
+          echo "Staging environment is ready for deployment."
+          echo "APP_ENV=${APP_ENV}"
+
+  production:
+    name: Production
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+      - docker
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'production')
+    environment:
+      name: production
+    env:
+      APP_ENV: production
+
+    steps:
+      - name: Promote production
+        run: |
+          echo "Production environment is ready for deployment."
+          echo "APP_ENV=${APP_ENV}"
