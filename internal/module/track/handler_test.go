@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // fakeService is an in-memory stub implementing Service for handler tests.
@@ -71,11 +72,11 @@ func setupRouter(svc Service) *gin.Engine {
 	h := NewHandler(svc)
 	r := gin.New()
 	g := r.Group("/stations/:station_id/tracks")
-	g.GET("", h.List)
-	g.GET("/:id", h.GetByID)
-	g.POST("", h.Create)
-	g.PATCH("/:id", h.Update)
-	g.DELETE("/:id", h.Delete)
+	g.GET("", httperr.Wrap(h.List, MapError))
+	g.GET("/:id", httperr.Wrap(h.GetByID, MapError))
+	g.POST("", httperr.Wrap(h.Create, MapError))
+	g.PATCH("/:id", httperr.Wrap(h.Update, MapError))
+	g.DELETE("/:id", httperr.Wrap(h.Delete, MapError))
 	return r
 }
 

@@ -2,11 +2,13 @@ package syncer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -59,6 +61,9 @@ func (r *sqlcRepository) CreateSyncJob(ctx context.Context, in CreateSyncJobInpu
 func (r *sqlcRepository) GetSyncJob(ctx context.Context, requestID string) (SyncJob, error) {
 	row, err := r.q.GetSyncJobByID(ctx, requestID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SyncJob{}, ErrRepoJobNotFound
+		}
 		return SyncJob{}, err
 	}
 	var startedAt *time.Time
@@ -95,4 +100,3 @@ func (r *sqlcRepository) MarkSyncJobFailed(ctx context.Context, requestID string
 		ErrorMessage: &message,
 	})
 }
-

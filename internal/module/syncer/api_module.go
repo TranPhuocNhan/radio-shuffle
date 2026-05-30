@@ -2,8 +2,7 @@ package syncer
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // APIModule wires syncer admin HTTP routes.
@@ -14,13 +13,11 @@ type APIModule struct {
 }
 
 // NewAPIModule constructs a syncer APIModule.
-func NewAPIModule(pool *pgxpool.Pool, publisher JobPublisher, signingKey []byte, issuer string) *APIModule {
-	repo := NewRepository(pool)
-	svc := NewJobService(repo, publisher)
+func NewAPIModule(h *Handler, authMw gin.HandlerFunc, adminMw gin.HandlerFunc) *APIModule {
 	return &APIModule{
-		h:       NewHandler(svc),
-		authMw:  mw.AuthRequired(signingKey, issuer),
-		adminMw: mw.AdminRequired(),
+		h:       h,
+		authMw:  authMw,
+		adminMw: adminMw,
 	}
 }
 
@@ -28,8 +25,7 @@ func NewAPIModule(pool *pgxpool.Pool, publisher JobPublisher, signingKey []byte,
 func (m *APIModule) RegisterRoutes(api *gin.RouterGroup) {
 	g := api.Group("/syncer", m.authMw, m.adminMw)
 	{
-		g.POST("/trigger", m.h.Trigger)
-		g.GET("/status/:request_id", m.h.Status)
+		g.POST("/trigger", httperr.Wrap(m.h.Trigger, MapError))
+		g.GET("/status/:request_id", httperr.Wrap(m.h.Status, MapError))
 	}
 }
-

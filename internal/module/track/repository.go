@@ -2,7 +2,15 @@ package track
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrRepoNotFound indicates that the repository could not find a requested row.
+	ErrRepoNotFound = errors.New("track repository: not found")
+	// ErrRepoStationNotFound indicates that a track references a missing station.
+	ErrRepoStationNotFound = errors.New("track repository: station not found")
 )
 
 // Track is the domain model for a track.
@@ -49,4 +57,3 @@ type Repository interface {
 	Update(ctx context.Context, in UpdateInput) (Track, error)
 	Delete(ctx context.Context, id int64) error
 }
-

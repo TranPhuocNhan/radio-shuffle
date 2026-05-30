@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
@@ -31,6 +33,9 @@ func (r *sqlcTokenRepository) Store(ctx context.Context, in StoreRefreshTokenInp
 func (r *sqlcTokenRepository) GetByHash(ctx context.Context, tokenHash []byte) (RefreshToken, error) {
 	row, err := r.q.GetRefreshTokenByHash(ctx, tokenHash)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RefreshToken{}, ErrRefreshTokenNotFound
+		}
 		return RefreshToken{}, err
 	}
 	return RefreshToken{

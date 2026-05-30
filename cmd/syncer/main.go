@@ -58,9 +58,11 @@ func main() {
 	}()
 
 	rbClient := radiobrowser.NewClient(cfg.RadioBrowserBaseURL)
-	mod := syncer.NewModule(pool, rbClient)
+	syncerRepo := syncer.NewRepository(pool)
+	syncService := syncer.NewService(syncerRepo, rbClient)
+	mod := syncer.NewModule(syncService)
 	syncSvc := mod.Service()
-	processor := syncer.NewJobProcessor(syncer.NewRepository(pool), syncSvc)
+	processor := syncer.NewJobProcessor(syncerRepo, syncSvc)
 
 	msgs, err := mqClient.Consume("syncer-worker")
 	if err != nil {

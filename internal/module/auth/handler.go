@@ -1,9 +1,9 @@
 package auth
 
 import (
-	"errors"
 	"net/http"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
@@ -19,72 +19,53 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Register(c *gin.Context) {
+func (h *Handler) Register(c *gin.Context) error {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	out, err := h.svc.Register(c.Request.Context(), RegisterInput{Email: req.Email, Password: req.Password})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrEmailTaken):
-			response.Conflict(c, err.Error())
-		case errors.Is(err, ErrWeakPassword):
-			response.BadRequest(c, err.Error())
-		default:
-			response.Internal(c, err)
-		}
-		return
+		return err
 	}
 	response.OK(c, http.StatusCreated, AuthResponse{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken})
+	return nil
 }
 
-func (h *Handler) Login(c *gin.Context) {
+func (h *Handler) Login(c *gin.Context) error {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	out, err := h.svc.Login(c.Request.Context(), LoginInput{Email: req.Email, Password: req.Password})
 	if err != nil {
-		if errors.Is(err, ErrInvalidCredentials) {
-			response.Unauthorized(c, err.Error())
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, AuthResponse{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken})
+	return nil
 }
 
-func (h *Handler) Refresh(c *gin.Context) {
+func (h *Handler) Refresh(c *gin.Context) error {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	out, err := h.svc.Refresh(c.Request.Context(), RefreshInput{RefreshToken: req.RefreshToken})
 	if err != nil {
-		if errors.Is(err, ErrInvalidRefreshToken) {
-			response.Unauthorized(c, err.Error())
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, AuthResponse{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken})
+	return nil
 }
 
-func (h *Handler) Logout(c *gin.Context) {
+func (h *Handler) Logout(c *gin.Context) error {
 	var req LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	if err := h.svc.Logout(c.Request.Context(), LogoutInput{RefreshToken: req.RefreshToken}); err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	c.Status(http.StatusNoContent)
+	return nil
 }

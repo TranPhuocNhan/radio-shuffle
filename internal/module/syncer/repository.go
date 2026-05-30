@@ -3,7 +3,13 @@ package syncer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrRepoJobNotFound indicates that a sync job row does not exist.
+	ErrRepoJobNotFound = errors.New("syncer repository: job not found")
 )
 
 // RadioBrowserStation is the domain representation of a synced station row.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 )
 
@@ -50,7 +51,7 @@ func TestHandler_Trigger_OK(t *testing.T) {
 	h := NewHandler(svc)
 	r := gin.New()
 	r.Use(withUser(42))
-	r.POST("/syncer/trigger", h.Trigger)
+	r.POST("/syncer/trigger", httperr.Wrap(h.Trigger, MapError))
 
 	req := httptest.NewRequest(http.MethodPost, "/syncer/trigger", http.NoBody)
 	w := httptest.NewRecorder()
@@ -88,7 +89,7 @@ func TestHandler_Status_OK(t *testing.T) {
 	h := NewHandler(svc)
 	r := gin.New()
 	r.Use(withUser(42))
-	r.GET("/syncer/status/:request_id", h.Status)
+	r.GET("/syncer/status/:request_id", httperr.Wrap(h.Status, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/syncer/status/req-1", http.NoBody)
 	w := httptest.NewRecorder()
@@ -120,7 +121,7 @@ func TestHandler_Status_NotFound(t *testing.T) {
 	h := NewHandler(svc)
 	r := gin.New()
 	r.Use(withUser(42))
-	r.GET("/syncer/status/:request_id", h.Status)
+	r.GET("/syncer/status/:request_id", httperr.Wrap(h.Status, MapError))
 
 	req := httptest.NewRequest(http.MethodGet, "/syncer/status/missing", http.NoBody)
 	w := httptest.NewRecorder()
@@ -130,4 +131,3 @@ func TestHandler_Status_NotFound(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
 }
-

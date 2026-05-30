@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -103,7 +102,7 @@ func (s *service) Register(ctx context.Context, in RegisterInput) (AuthOutput, e
 	if err == nil {
 		return AuthOutput{}, ErrEmailTaken
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if !errors.Is(err, ErrUserNotFound) {
 		return AuthOutput{}, err
 	}
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
@@ -133,7 +132,7 @@ func (s *service) Register(ctx context.Context, in RegisterInput) (AuthOutput, e
 func (s *service) Login(ctx context.Context, in LoginInput) (AuthOutput, error) {
 	user, err := s.users.GetByEmail(ctx, in.Email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrUserNotFound) {
 			return AuthOutput{}, ErrInvalidCredentials
 		}
 		return AuthOutput{}, err
@@ -148,7 +147,7 @@ func (s *service) Refresh(ctx context.Context, in RefreshInput) (AuthOutput, err
 	hash := hashToken(in.RefreshToken)
 	stored, err := s.tokens.GetByHash(ctx, hash)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRefreshTokenNotFound) {
 			return AuthOutput{}, ErrInvalidRefreshToken
 		}
 		return AuthOutput{}, err

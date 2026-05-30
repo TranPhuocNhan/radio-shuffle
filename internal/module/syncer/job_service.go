@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -86,7 +84,7 @@ func (s *jobService) Trigger(ctx context.Context, requestedBy string) (SyncJob, 
 func (s *jobService) Status(ctx context.Context, requestID string) (SyncJob, error) {
 	job, err := s.repo.GetSyncJob(ctx, requestID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoJobNotFound) {
 			return SyncJob{}, ErrJobNotFound
 		}
 		return SyncJob{}, err
@@ -97,7 +95,7 @@ func (s *jobService) Status(ctx context.Context, requestID string) (SyncJob, err
 func (p *jobProcessor) Process(ctx context.Context, cmd SyncCommand) (SyncResult, error) {
 	job, err := p.repo.GetSyncJob(ctx, cmd.RequestID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoJobNotFound) {
 			if err := p.repo.CreateSyncJob(ctx, CreateSyncJobInput{
 				RequestID:   cmd.RequestID,
 				Status:      SyncJobPending,

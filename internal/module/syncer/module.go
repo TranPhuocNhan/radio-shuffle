@@ -1,20 +1,12 @@
 package syncer
 
-import (
-	"github.com/tranphuocnhan/radio-shuffle/internal/platform/radiobrowser"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-)
-
 // Module wires syncer dependencies together.
 type Module struct {
 	svc Service
 }
 
 // NewModule constructs a syncer Module.
-func NewModule(pool *pgxpool.Pool, client *radiobrowser.Client) *Module {
-	repo := NewRepository(pool)
-	svc := newService(repo, client)
+func NewModule(svc Service) *Module {
 	return &Module{svc: svc}
 }
 

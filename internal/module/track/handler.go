@@ -1,10 +1,10 @@
 package track
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
@@ -20,16 +20,14 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Create(c *gin.Context) {
+func (h *Handler) Create(c *gin.Context) error {
 	stationID, err := parseStationIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid station_id")
-		return
+		return httperr.BadRequest("invalid station_id")
 	}
 	var req CreateTrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	row, err := h.svc.Create(c.Request.Context(), CreateTrackInput{
 		StationID:       stationID,
@@ -39,56 +37,46 @@ func (h *Handler) Create(c *gin.Context) {
 		DurationSeconds: req.DurationSeconds,
 	})
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusCreated, toTrackResponse(row))
+	return nil
 }
 
-func (h *Handler) GetByID(c *gin.Context) {
+func (h *Handler) GetByID(c *gin.Context) error {
 	_, err := parseStationIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid station_id")
-		return
+		return httperr.BadRequest("invalid station_id")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	out, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "track not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toTrackResponse(out))
+	return nil
 }
 
-func (h *Handler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) error {
 	stationID, err := parseStationIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid station_id")
-		return
+		return httperr.BadRequest("invalid station_id")
 	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		response.BadRequest(c, "invalid limit")
-		return
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		response.BadRequest(c, "invalid offset")
-		return
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	tracks, total, err := h.svc.List(c.Request.Context(), stationID, limit, offset)
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	items := make([]TrackResponse, 0, len(tracks))
 	for _, t := range tracks {
@@ -99,23 +87,21 @@ func (h *Handler) List(c *gin.Context) {
 		page = int(offset/limit) + 1
 	}
 	response.Paginated(c, http.StatusOK, items, page, int(limit), total)
+	return nil
 }
 
-func (h *Handler) Update(c *gin.Context) {
+func (h *Handler) Update(c *gin.Context) error {
 	stationID, err := parseStationIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid station_id")
-		return
+		return httperr.BadRequest("invalid station_id")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	var req UpdateTrackRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	out, err := h.svc.Update(c.Request.Context(), id, stationID, UpdateTrackInput{
 		Title:           req.Title,
@@ -124,36 +110,26 @@ func (h *Handler) Update(c *gin.Context) {
 		DurationSeconds: req.DurationSeconds,
 	})
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "track not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toTrackResponse(out))
+	return nil
 }
 
-func (h *Handler) Delete(c *gin.Context) {
+func (h *Handler) Delete(c *gin.Context) error {
 	_, err := parseStationIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid station_id")
-		return
+		return httperr.BadRequest("invalid station_id")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			response.NotFound(c, "track not found")
-			return
-		}
-		response.Internal(c, err)
-		return
+		return err
 	}
 	c.Status(http.StatusNoContent)
+	return nil
 }
 
 func parseStationIDParam(c *gin.Context) (int64, error) {

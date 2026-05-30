@@ -26,6 +26,14 @@ func New(status int, message string) error {
 	return &HTTPError{Status: status, Message: message}
 }
 
+func BadRequest(message string) error {
+	return New(http.StatusBadRequest, message)
+}
+
+func Unauthorized(message string) error {
+	return New(http.StatusUnauthorized, message)
+}
+
 func Wrap(fn AppHandler, mappers ...Mapper) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if err := fn(c); err != nil {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 type stubService struct {
@@ -43,7 +44,7 @@ func TestRegisterHandler(t *testing.T) {
 	stub := &stubService{registerOut: AuthOutput{AccessToken: "access", RefreshToken: "refresh"}}
 	h := NewHandler(stub)
 	router := gin.New()
-	router.POST("/auth/register", h.Register)
+	router.POST("/auth/register", httperr.Wrap(h.Register, MapError))
 
 	payload := `{"email":"test@example.com","password":"password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(payload))
@@ -63,7 +64,7 @@ func TestLoginHandlerInvalidCredentials(t *testing.T) {
 	stub := &stubService{loginErr: ErrInvalidCredentials}
 	h := NewHandler(stub)
 	router := gin.New()
-	router.POST("/auth/login", h.Login)
+	router.POST("/auth/login", httperr.Wrap(h.Login, MapError))
 
 	payload := `{"email":"test@example.com","password":"wrong"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(payload))
@@ -79,7 +80,7 @@ func TestRefreshHandler(t *testing.T) {
 	stub := &stubService{refreshOut: AuthOutput{AccessToken: "access", RefreshToken: "refresh"}}
 	h := NewHandler(stub)
 	router := gin.New()
-	router.POST("/auth/refresh", h.Refresh)
+	router.POST("/auth/refresh", httperr.Wrap(h.Refresh, MapError))
 
 	payload := `{"refresh_token":"token"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewBufferString(payload))
@@ -95,7 +96,7 @@ func TestLogoutHandler(t *testing.T) {
 	stub := &stubService{}
 	h := NewHandler(stub)
 	router := gin.New()
-	router.POST("/auth/logout", h.Logout)
+	router.POST("/auth/logout", httperr.Wrap(h.Logout, MapError))
 
 	payload := `{"refresh_token":"token"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", bytes.NewBufferString(payload))
