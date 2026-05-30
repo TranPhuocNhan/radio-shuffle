@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type serviceStubRepo struct {
@@ -132,7 +130,7 @@ func TestService_Create_DefaultsIsPublic(t *testing.T) {
 
 func TestService_GetByID_NotFound(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{}, pgx.ErrNoRows },
+		getByID: func(context.Context, int64) (Station, error) { return Station{}, ErrRepoNotFound },
 	}
 	svc := NewService(repo)
 
@@ -185,7 +183,7 @@ func TestService_Update_MergesFields(t *testing.T) {
 
 func TestService_Update_NotFound(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{}, pgx.ErrNoRows },
+		getByID: func(context.Context, int64) (Station, error) { return Station{}, ErrRepoNotFound },
 	}
 	svc := NewService(repo)
 
@@ -197,7 +195,7 @@ func TestService_Update_NotFound(t *testing.T) {
 
 func TestService_Delete_NotFound(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{}, pgx.ErrNoRows },
+		getByID: func(context.Context, int64) (Station, error) { return Station{}, ErrRepoNotFound },
 	}
 	svc := NewService(repo)
 
@@ -211,7 +209,7 @@ func TestService_Delete_OK(t *testing.T) {
 	deleted := false
 	repo := serviceStubRepo{
 		getByID: func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
-		delete: func(context.Context, int64) error { deleted = true; return nil },
+		delete:  func(context.Context, int64) error { deleted = true; return nil },
 	}
 	svc := NewService(repo)
 
@@ -225,7 +223,7 @@ func TestService_Delete_OK(t *testing.T) {
 
 func TestService_Follow_NotFound(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{}, pgx.ErrNoRows },
+		getByID: func(context.Context, int64) (Station, error) { return Station{}, ErrRepoNotFound },
 	}
 	svc := NewService(repo)
 
@@ -239,7 +237,7 @@ func TestService_Follow_OK(t *testing.T) {
 	called := false
 	repo := serviceStubRepo{
 		getByID: func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
-		follow: func(context.Context, int64, int64) error { called = true; return nil },
+		follow:  func(context.Context, int64, int64) error { called = true; return nil },
 	}
 	svc := NewService(repo)
 
@@ -253,7 +251,7 @@ func TestService_Follow_OK(t *testing.T) {
 
 func TestService_Unfollow_NotFound(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{}, pgx.ErrNoRows },
+		getByID: func(context.Context, int64) (Station, error) { return Station{}, ErrRepoNotFound },
 	}
 	svc := NewService(repo)
 
@@ -266,7 +264,7 @@ func TestService_Unfollow_NotFound(t *testing.T) {
 func TestService_Unfollow_OK(t *testing.T) {
 	called := false
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
+		getByID:  func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
 		unfollow: func(context.Context, int64, int64) error { called = true; return nil },
 	}
 	svc := NewService(repo)
@@ -281,7 +279,7 @@ func TestService_Unfollow_OK(t *testing.T) {
 
 func TestService_IsFollowing(t *testing.T) {
 	repo := serviceStubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
+		getByID:     func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
 		isFollowing: func(context.Context, int64, int64) (bool, error) { return true, nil },
 	}
 	svc := NewService(repo)
@@ -329,7 +327,7 @@ func TestService_CountFollowedStations(t *testing.T) {
 
 func TestService_CountFollowers(t *testing.T) {
 	repo := stubRepo{
-		getByID: func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
+		getByID:        func(context.Context, int64) (Station, error) { return Station{ID: 10}, nil },
 		countFollowers: func(context.Context, int64) (int64, error) { return 4, nil },
 	}
 	svc := NewService(repo)
@@ -342,5 +340,3 @@ func TestService_CountFollowers(t *testing.T) {
 		t.Fatalf("expected 4, got %d", count)
 	}
 }
-
-

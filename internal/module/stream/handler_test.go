@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 
 	"github.com/gin-gonic/gin"
@@ -65,10 +66,10 @@ func setupRouter(svc Service) *gin.Engine {
 		c.Next()
 	})
 	g := r.Group("/streams")
-	g.POST("", h.Start)
-	g.GET("", h.List)
-	g.GET("/:id", h.GetByID)
-	g.PATCH("/:id/end", h.End)
+	g.POST("", httperr.Wrap(h.Start, MapError))
+	g.GET("", httperr.Wrap(h.List, MapError))
+	g.GET("/:id", httperr.Wrap(h.GetByID, MapError))
+	g.PATCH("/:id/end", httperr.Wrap(h.End, MapError))
 	return r
 }
 

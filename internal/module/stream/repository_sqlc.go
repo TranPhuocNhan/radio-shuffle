@@ -2,10 +2,13 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -44,7 +47,7 @@ func (r *sqlcRepository) Create(ctx context.Context, in CreateInput) (Stream, er
 		EndedAt:   pgtype.Timestamptz{Valid: false},
 	})
 	if err != nil {
-		return Stream{}, err
+		return Stream{}, mapPgError(err)
 	}
 	return streamFromDB(row), nil
 }
@@ -55,7 +58,7 @@ func (r *sqlcRepository) End(ctx context.Context, id int64, endedAt time.Time) (
 		EndedAt: pgtype.Timestamptz{Time: endedAt, Valid: true},
 	})
 	if err != nil {
-		return Stream{}, err
+		return Stream{}, mapNoRowsOrPgError(err)
 	}
 	return streamFromDB(row), nil
 }
@@ -63,7 +66,7 @@ func (r *sqlcRepository) End(ctx context.Context, id int64, endedAt time.Time) (
 func (r *sqlcRepository) GetByID(ctx context.Context, id int64) (Stream, error) {
 	row, err := r.q.GetStreamByID(ctx, id)
 	if err != nil {
-		return Stream{}, err
+		return Stream{}, mapNoRowsOrPgError(err)
 	}
 	return streamFromDB(row), nil
 }
@@ -86,4 +89,24 @@ func (r *sqlcRepository) ListByUser(ctx context.Context, userID, limit, offset i
 
 func (r *sqlcRepository) CountByUser(ctx context.Context, userID int64) (int64, error) {
 	return r.q.CountStreamsByUserID(ctx, userID)
+}
+
+func mapNoRowsOrPgError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrRepoNotFound
+	}
+	return mapPgError(err)
+}
+
+func mapPgError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23503" && pgErr.ConstraintName == "streams_station_id_fkey" {
+			return ErrRepoStationNotFound
+		}
+	}
+	return err
 }

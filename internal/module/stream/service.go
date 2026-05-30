@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // Sentinel errors for HTTP mapping in handlers.
 var (
-	ErrNotFound     = errors.New("stream not found")
-	ErrForbidden    = errors.New("forbidden")
-	ErrAlreadyEnded = errors.New("stream already ended")
+	ErrNotFound        = errors.New("stream not found")
+	ErrStationNotFound = errors.New("station not found")
+	ErrForbidden       = errors.New("forbidden")
+	ErrAlreadyEnded    = errors.New("stream already ended")
 )
 
 const (
@@ -38,11 +37,18 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) Start(ctx context.Context, userID, stationID int64) (Stream, error) {
-	return s.repo.Create(ctx, CreateInput{
+	stream, err := s.repo.Create(ctx, CreateInput{
 		UserID:    userID,
 		StationID: stationID,
 		StartedAt: time.Now(),
 	})
+	if err != nil {
+		if errors.Is(err, ErrRepoStationNotFound) {
+			return Stream{}, ErrStationNotFound
+		}
+		return Stream{}, err
+	}
+	return stream, nil
 }
 
 func (s *service) End(ctx context.Context, id, userID int64) (Stream, error) {
@@ -58,7 +64,7 @@ func (s *service) End(ctx context.Context, id, userID int64) (Stream, error) {
 	}
 	ended, err := s.repo.End(ctx, id, time.Now())
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoNotFound) {
 			return Stream{}, ErrNotFound
 		}
 		return Stream{}, err
@@ -92,7 +98,7 @@ func (s *service) List(ctx context.Context, userID, limit, offset int64) ([]Stre
 func (s *service) getByID(ctx context.Context, id int64) (Stream, error) {
 	stream, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, ErrRepoNotFound) {
 			return Stream{}, ErrNotFound
 		}
 		return Stream{}, err

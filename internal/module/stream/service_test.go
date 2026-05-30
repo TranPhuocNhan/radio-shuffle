@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // fakeRepo is an in-memory stub implementing Repository for service tests.
@@ -35,7 +33,7 @@ func (f *fakeRepo) End(_ context.Context, id int64, endedAt time.Time) (Stream, 
 			return f.streams[i], nil
 		}
 	}
-	return Stream{}, pgx.ErrNoRows
+	return Stream{}, ErrRepoNotFound
 }
 
 func (f *fakeRepo) GetByID(_ context.Context, id int64) (Stream, error) {
@@ -44,7 +42,7 @@ func (f *fakeRepo) GetByID(_ context.Context, id int64) (Stream, error) {
 			return s, nil
 		}
 	}
-	return Stream{}, pgx.ErrNoRows
+	return Stream{}, ErrRepoNotFound
 }
 
 func (f *fakeRepo) ListByUser(_ context.Context, userID, _, _ int64) ([]Stream, error) {

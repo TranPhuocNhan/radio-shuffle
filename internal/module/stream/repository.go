@@ -2,7 +2,15 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrRepoNotFound indicates that the repository could not find a requested stream row.
+	ErrRepoNotFound = errors.New("stream repository: not found")
+	// ErrRepoStationNotFound indicates that a stream references a missing station.
+	ErrRepoStationNotFound = errors.New("stream repository: station not found")
 )
 
 // Stream is the domain model for a listening session.

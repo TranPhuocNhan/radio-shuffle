@@ -2,8 +2,7 @@ package stream
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 )
 
 // Module wires stream HTTP routes.
@@ -13,12 +12,10 @@ type Module struct {
 }
 
 // NewModule constructs a stream Module.
-func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
-	repo := NewRepository(pool)
-	svc := NewService(repo)
+func NewModule(h *Handler, authMw gin.HandlerFunc) *Module {
 	return &Module{
-		h:      NewHandler(svc),
-		authMw: plmw.AuthRequired(signingKey, issuer),
+		h:      h,
+		authMw: authMw,
 	}
 }
 
@@ -26,9 +23,9 @@ func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
 func (m *Module) RegisterRoutes(api *gin.RouterGroup) {
 	g := api.Group("/streams", m.authMw)
 	{
-		g.POST("", m.h.Start)
-		g.GET("", m.h.List)
-		g.GET("/:id", m.h.GetByID)
-		g.PATCH("/:id/end", m.h.End)
+		g.POST("", httperr.Wrap(m.h.Start, MapError))
+		g.GET("", httperr.Wrap(m.h.List, MapError))
+		g.GET("/:id", httperr.Wrap(m.h.GetByID, MapError))
+		g.PATCH("/:id/end", httperr.Wrap(m.h.End, MapError))
 	}
 }

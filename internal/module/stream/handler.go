@@ -1,10 +1,10 @@
 package stream
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
@@ -21,72 +21,57 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Start(c *gin.Context) {
+func (h *Handler) Start(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	var req StartStreamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+		return httperr.BadRequest(err.Error())
 	}
 	row, err := h.svc.Start(c.Request.Context(), userID, req.StationID)
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	response.OK(c, http.StatusCreated, toStreamResponse(row))
+	return nil
 }
 
-func (h *Handler) GetByID(c *gin.Context) {
+func (h *Handler) GetByID(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	row, err := h.svc.GetByID(c.Request.Context(), id, userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrNotFound):
-			response.NotFound(c, "stream not found")
-		case errors.Is(err, ErrForbidden):
-			response.Forbidden(c, "forbidden")
-		default:
-			response.Internal(c, err)
-		}
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toStreamResponse(row))
+	return nil
 }
 
-func (h *Handler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		response.BadRequest(c, "invalid limit")
-		return
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		response.BadRequest(c, "invalid offset")
-		return
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.List(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		response.Internal(c, err)
-		return
+		return err
 	}
 	responses := make([]StreamResponse, 0, len(items))
 	for _, item := range items {
@@ -97,34 +82,24 @@ func (h *Handler) List(c *gin.Context) {
 		page = int(offset/limit) + 1
 	}
 	response.Paginated(c, http.StatusOK, responses, page, int(limit), total)
+	return nil
 }
 
-func (h *Handler) End(c *gin.Context) {
+func (h *Handler) End(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		response.Unauthorized(c, "missing user")
-		return
+		return httperr.Unauthorized("missing user")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
+		return httperr.BadRequest("invalid id")
 	}
 	row, err := h.svc.End(c.Request.Context(), id, userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrNotFound):
-			response.NotFound(c, "stream not found")
-		case errors.Is(err, ErrForbidden):
-			response.Forbidden(c, "forbidden")
-		case errors.Is(err, ErrAlreadyEnded):
-			response.Conflict(c, "stream already ended")
-		default:
-			response.Internal(c, err)
-		}
-		return
+		return err
 	}
 	response.OK(c, http.StatusOK, toStreamResponse(row))
+	return nil
 }
 
 func parseIDParam(c *gin.Context) (int64, error) {
