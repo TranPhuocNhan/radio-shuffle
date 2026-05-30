@@ -11,8 +11,12 @@ var (
 	ErrRepoNotFound = errors.New("playlist repository: not found")
 	// ErrRepoDuplicate indicates duplicate key violation in repository operations.
 	ErrRepoDuplicate = errors.New("playlist repository: duplicate")
+	// ErrRepoDuplicatePosition indicates that a playlist already has a track at the requested position.
+	ErrRepoDuplicatePosition = errors.New("playlist repository: duplicate position")
 	// ErrRepoInvalid indicates check/validation violation enforced by database.
 	ErrRepoInvalid = errors.New("playlist repository: invalid input")
+	// ErrRepoInvalidTrackSet indicates that a reorder payload does not match existing playlist tracks.
+	ErrRepoInvalidTrackSet = errors.New("playlist repository: invalid track set")
 )
 
 // Playlist is the domain model for a playlist.
@@ -74,7 +78,6 @@ type Repository interface {
 	AddTrack(ctx context.Context, playlistID, trackID int64, position int32) error
 	RemoveTrack(ctx context.Context, playlistID, trackID int64) error
 	ListTracks(ctx context.Context, playlistID, limit, offset int64) ([]PlaylistTrack, error)
-	ListTrackIDs(ctx context.Context, playlistID int64) ([]int64, error)
 	CountTracks(ctx context.Context, playlistID int64) (int64, error)
 	ReorderTracks(ctx context.Context, playlistID int64, items []TrackPositionUpdate) error
 }

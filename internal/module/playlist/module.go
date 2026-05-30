@@ -2,9 +2,7 @@ package playlist
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/httperr"
-	plmw "github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 )
 
 // Module wires playlist HTTP routes.
@@ -14,12 +12,10 @@ type Module struct {
 }
 
 // NewModule constructs a playlist Module.
-func NewModule(pool *pgxpool.Pool, signingKey []byte, issuer string) *Module {
-	repo := NewRepository(pool)
-	svc := NewService(repo)
+func NewModule(h *Handler, authMw gin.HandlerFunc) *Module {
 	return &Module{
-		h:      NewHandler(svc),
-		authMw: plmw.AuthRequired(signingKey, issuer),
+		h:      h,
+		authMw: authMw,
 	}
 }
 

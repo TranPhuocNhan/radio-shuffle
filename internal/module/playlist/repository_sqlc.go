@@ -3,6 +3,7 @@ package playlist
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
@@ -117,20 +118,46 @@ func (r *sqlcRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *sqlcRepository) AddTrack(ctx context.Context, playlistID, trackID int64, position int32) error {
-	err := r.q.AddTrackToPlaylist(ctx, dbsqlc.AddTrackToPlaylistParams{
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := r.q.WithTx(tx)
+	if _, err := qtx.LockPlaylistForUpdate(ctx, playlistID); err != nil {
+		return mapNoRowsOrPgError(err)
+	}
+	err = qtx.AddTrackToPlaylist(ctx, dbsqlc.AddTrackToPlaylistParams{
 		PlaylistID: playlistID,
 		TrackID:    trackID,
 		Position:   position,
 	})
-	return mapPgError(err)
+	if err != nil {
+		return mapPgError(err)
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *sqlcRepository) RemoveTrack(ctx context.Context, playlistID, trackID int64) error {
-	_, err := r.q.RemoveTrackFromPlaylist(ctx, dbsqlc.RemoveTrackFromPlaylistParams{
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := r.q.WithTx(tx)
+	if _, err := qtx.LockPlaylistForUpdate(ctx, playlistID); err != nil {
+		return mapNoRowsOrPgError(err)
+	}
+	_, err = qtx.RemoveTrackFromPlaylist(ctx, dbsqlc.RemoveTrackFromPlaylistParams{
 		PlaylistID: playlistID,
 		TrackID:    trackID,
 	})
-	return mapNoRowsOrPgError(err)
+	if err != nil {
+		return mapNoRowsOrPgError(err)
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *sqlcRepository) ListTracks(ctx context.Context, playlistID, limit, offset int64) ([]PlaylistTrack, error) {
@@ -153,10 +180,6 @@ func (r *sqlcRepository) CountTracks(ctx context.Context, playlistID int64) (int
 	return r.q.CountPlaylistTracks(ctx, playlistID)
 }
 
-func (r *sqlcRepository) ListTrackIDs(ctx context.Context, playlistID int64) ([]int64, error) {
-	return r.q.ListPlaylistTrackIDs(ctx, playlistID)
-}
-
 func (r *sqlcRepository) ReorderTracks(ctx context.Context, playlistID int64, items []TrackPositionUpdate) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -165,6 +188,35 @@ func (r *sqlcRepository) ReorderTracks(ctx context.Context, playlistID int64, it
 	defer tx.Rollback(ctx)
 
 	qtx := r.q.WithTx(tx)
+	if _, err := qtx.LockPlaylistForUpdate(ctx, playlistID); err != nil {
+		return mapNoRowsOrPgError(err)
+	}
+	existingTrackIDs, err := qtx.ListPlaylistTrackIDsForUpdate(ctx, playlistID)
+	if err != nil {
+		return err
+	}
+	if !hasExactTrackSet(existingTrackIDs, items) {
+		return ErrRepoInvalidTrackSet
+	}
+	maxPosition, err := qtx.MaxPlaylistTrackPosition(ctx, playlistID)
+	if err != nil {
+		return err
+	}
+	tempBase := int64(maxPosition) + int64(len(items)) + 1
+	if tempBase+int64(len(items)) > math.MaxInt32 {
+		return ErrRepoInvalid
+	}
+	for _, item := range items {
+		_, err := qtx.UpdatePlaylistTrackPosition(ctx, dbsqlc.UpdatePlaylistTrackPositionParams{
+			PlaylistID: playlistID,
+			TrackID:    item.TrackID,
+			Position:   int32(tempBase),
+		})
+		if err != nil {
+			return mapNoRowsOrPgError(err)
+		}
+		tempBase++
+	}
 	for _, item := range items {
 		_, err := qtx.UpdatePlaylistTrackPosition(ctx, dbsqlc.UpdatePlaylistTrackPositionParams{
 			PlaylistID: playlistID,
@@ -176,6 +228,22 @@ func (r *sqlcRepository) ReorderTracks(ctx context.Context, playlistID int64, it
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+func hasExactTrackSet(existingTrackIDs []int64, items []TrackPositionUpdate) bool {
+	if len(existingTrackIDs) != len(items) {
+		return false
+	}
+	existingSet := make(map[int64]struct{}, len(existingTrackIDs))
+	for _, id := range existingTrackIDs {
+		existingSet[id] = struct{}{}
+	}
+	for _, item := range items {
+		if _, ok := existingSet[item.TrackID]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func mapNoRowsOrPgError(err error) error {
@@ -193,6 +261,12 @@ func mapPgError(err error) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23505":
+			switch pgErr.ConstraintName {
+			case "playlist_tracks_pkey":
+				return ErrRepoDuplicate
+			case "playlist_tracks_playlist_position_unique":
+				return ErrRepoDuplicatePosition
+			}
 			return ErrRepoDuplicate
 		case "23503":
 			return ErrRepoNotFound

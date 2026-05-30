@@ -30,8 +30,8 @@ type PlaylistResponse struct {
 
 // AddPlaylistTrackRequest is the HTTP body for POST /playlists/:id/tracks.
 type AddPlaylistTrackRequest struct {
-	TrackID  int64 `json:"track_id" binding:"required"`
-	Position int32 `json:"position"`
+	TrackID  int64  `json:"track_id" binding:"required"`
+	Position *int32 `json:"position" binding:"required"`
 }
 
 // ReorderPlaylistTracksRequest is the HTTP body for PATCH /playlists/:id/tracks/reorder.

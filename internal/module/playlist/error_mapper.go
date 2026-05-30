@@ -22,6 +22,9 @@ func MapError(c *gin.Context, err error) bool {
 	case errors.Is(err, ErrDuplicateTrack):
 		response.Conflict(c, "duplicate track")
 		return true
+	case errors.Is(err, ErrDuplicatePosition):
+		response.Conflict(c, "duplicate position")
+		return true
 	case errors.Is(err, ErrInvalidPosition):
 		response.BadRequest(c, "invalid position")
 		return true

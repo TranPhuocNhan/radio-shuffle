@@ -63,7 +63,9 @@ CREATE TABLE playlist_tracks (
     playlist_id BIGINT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
     track_id BIGINT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
     position INT NOT NULL DEFAULT 0,
-    PRIMARY KEY (playlist_id, track_id)
+    PRIMARY KEY (playlist_id, track_id),
+    CONSTRAINT playlist_tracks_position_nonnegative CHECK (position >= 0),
+    CONSTRAINT playlist_tracks_playlist_position_unique UNIQUE (playlist_id, position) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 CREATE TABLE streams (

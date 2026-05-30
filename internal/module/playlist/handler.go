@@ -21,17 +21,14 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func newBadRequest(message string) error   { return httperr.New(http.StatusBadRequest, message) }
-func newUnauthorized(message string) error { return httperr.New(http.StatusUnauthorized, message) }
-
 func (h *Handler) create(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	var req CreatePlaylistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return newBadRequest(err.Error())
+		return httperr.BadRequest(err.Error())
 	}
 	row, err := h.svc.Create(c.Request.Context(), userID, CreatePlaylistInput{
 		Name:        req.Name,
@@ -48,15 +45,15 @@ func (h *Handler) create(c *gin.Context) error {
 func (h *Handler) list(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		return newBadRequest("invalid limit")
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		return newBadRequest("invalid offset")
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.List(c.Request.Context(), userID, limit, offset)
@@ -78,11 +75,11 @@ func (h *Handler) list(c *gin.Context) error {
 func (h *Handler) getByID(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	out, err := h.svc.GetByID(c.Request.Context(), id, userID)
 	if err != nil {
@@ -95,18 +92,18 @@ func (h *Handler) getByID(c *gin.Context) error {
 func (h *Handler) update(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	var req UpdatePlaylistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return newBadRequest(err.Error())
+		return httperr.BadRequest(err.Error())
 	}
 	if req.Name == nil && req.Description == nil && req.IsPublic == nil {
-		return newBadRequest("at least one field is required")
+		return httperr.BadRequest("at least one field is required")
 	}
 	out, err := h.svc.Update(c.Request.Context(), id, userID, UpdatePlaylistInput{
 		Name:        req.Name,
@@ -123,11 +120,11 @@ func (h *Handler) update(c *gin.Context) error {
 func (h *Handler) delete(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	id, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	if err := h.svc.Delete(c.Request.Context(), id, userID); err != nil {
 		return err
@@ -139,17 +136,17 @@ func (h *Handler) delete(c *gin.Context) error {
 func (h *Handler) addTrack(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	playlistID, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	var req AddPlaylistTrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return newBadRequest(err.Error())
+		return httperr.BadRequest(err.Error())
 	}
-	if err := h.svc.AddTrack(c.Request.Context(), playlistID, userID, req.TrackID, req.Position); err != nil {
+	if err := h.svc.AddTrack(c.Request.Context(), playlistID, userID, req.TrackID, *req.Position); err != nil {
 		return err
 	}
 	c.Status(http.StatusNoContent)
@@ -159,15 +156,15 @@ func (h *Handler) addTrack(c *gin.Context) error {
 func (h *Handler) removeTrack(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	playlistID, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	trackID, err := parseTrackIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid track_id")
+		return httperr.BadRequest("invalid track_id")
 	}
 	if err := h.svc.RemoveTrack(c.Request.Context(), playlistID, userID, trackID); err != nil {
 		return err
@@ -179,19 +176,19 @@ func (h *Handler) removeTrack(c *gin.Context) error {
 func (h *Handler) listTracks(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	playlistID, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	limit, err := parseQueryInt64(c, "limit", defaultListLimit)
 	if err != nil {
-		return newBadRequest("invalid limit")
+		return httperr.BadRequest("invalid limit")
 	}
 	offset, err := parseQueryInt64(c, "offset", 0)
 	if err != nil {
-		return newBadRequest("invalid offset")
+		return httperr.BadRequest("invalid offset")
 	}
 	limit, offset = normalizeListParams(limit, offset)
 	items, total, err := h.svc.ListTracks(c.Request.Context(), playlistID, userID, limit, offset)
@@ -213,18 +210,18 @@ func (h *Handler) listTracks(c *gin.Context) error {
 func (h *Handler) reorderTracks(c *gin.Context) error {
 	userID, ok := mw.UserIDFromContext(c)
 	if !ok {
-		return newUnauthorized("missing user")
+		return httperr.Unauthorized("missing user")
 	}
 	playlistID, err := parseIDParam(c)
 	if err != nil {
-		return newBadRequest("invalid id")
+		return httperr.BadRequest("invalid id")
 	}
 	var req ReorderPlaylistTracksRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return newBadRequest(err.Error())
+		return httperr.BadRequest(err.Error())
 	}
 	if len(req.Items) == 0 {
-		return newBadRequest("items cannot be empty")
+		return httperr.BadRequest("items cannot be empty")
 	}
 	patches := make([]TrackPositionPatch, 0, len(req.Items))
 	for _, item := range req.Items {

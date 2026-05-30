@@ -110,15 +110,16 @@ func (q *Queries) GetPlaylistByID(ctx context.Context, id int64) (Playlists, err
 	return i, err
 }
 
-const ListPlaylistTrackIDs = `-- name: ListPlaylistTrackIDs :many
+const ListPlaylistTrackIDsForUpdate = `-- name: ListPlaylistTrackIDsForUpdate :many
 SELECT track_id
 FROM playlist_tracks
 WHERE playlist_id = $1
 ORDER BY track_id ASC
+FOR UPDATE
 `
 
-func (q *Queries) ListPlaylistTrackIDs(ctx context.Context, playlistID int64) ([]int64, error) {
-	rows, err := q.db.Query(ctx, ListPlaylistTrackIDs, playlistID)
+func (q *Queries) ListPlaylistTrackIDsForUpdate(ctx context.Context, playlistID int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, ListPlaylistTrackIDsForUpdate, playlistID)
 	if err != nil {
 		return nil, err
 	}
@@ -275,6 +276,33 @@ func (q *Queries) ListPublicPlaylists(ctx context.Context, arg ListPublicPlaylis
 		return nil, err
 	}
 	return items, nil
+}
+
+const LockPlaylistForUpdate = `-- name: LockPlaylistForUpdate :one
+SELECT id
+FROM playlists
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) LockPlaylistForUpdate(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, LockPlaylistForUpdate, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const MaxPlaylistTrackPosition = `-- name: MaxPlaylistTrackPosition :one
+SELECT COALESCE(MAX(position), -1)::int
+FROM playlist_tracks
+WHERE playlist_id = $1
+`
+
+func (q *Queries) MaxPlaylistTrackPosition(ctx context.Context, playlistID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, MaxPlaylistTrackPosition, playlistID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const RemoveTrackFromPlaylist = `-- name: RemoveTrackFromPlaylist :one

@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/playlist"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/pkg/dbsqlc"
 
 	"github.com/gin-gonic/gin"
@@ -75,7 +77,7 @@ func setupTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 		t.Fatalf("test pool: %v", err)
 	}
 
-	schemaSQL, err := os.ReadFile("db/schema.sql")
+	schemaSQL, err := os.ReadFile(filepath.Join("..", "..", "db", "schema.sql"))
 	if err != nil {
 		pool.Close()
 		adminPool.Close()
@@ -100,7 +102,11 @@ func setupRouter(t *testing.T, pool *pgxpool.Pool, signingKey []byte, issuer str
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	api := r.Group("/api/v1")
-	playlist.NewModule(pool, signingKey, issuer).RegisterRoutes(api)
+	repo := playlist.NewRepository(pool)
+	svc := playlist.NewService(repo)
+	handler := playlist.NewHandler(svc)
+	authMw := mw.AuthRequired(signingKey, issuer)
+	playlist.NewModule(handler, authMw).RegisterRoutes(api)
 	return r
 }
 
@@ -338,4 +344,3 @@ func TestIntegration_Playlists_CRUD_And_Tracks(t *testing.T) {
 		t.Fatalf("get deleted status = %d, body = %s", getDeletedResp.Code, getDeletedResp.Body.String())
 	}
 }
-

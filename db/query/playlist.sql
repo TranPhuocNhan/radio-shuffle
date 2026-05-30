@@ -6,6 +6,12 @@ RETURNING *;
 -- name: GetPlaylistByID :one
 SELECT * FROM playlists WHERE id = $1;
 
+-- name: LockPlaylistForUpdate :one
+SELECT id
+FROM playlists
+WHERE id = $1
+FOR UPDATE;
+
 -- name: ListPlaylistsOwnedBy :many
 SELECT *
 FROM playlists
@@ -50,11 +56,17 @@ LIMIT $2 OFFSET $3;
 -- name: CountPlaylistTracks :one
 SELECT COUNT(*)::bigint FROM playlist_tracks WHERE playlist_id = $1;
 
--- name: ListPlaylistTrackIDs :many
+-- name: ListPlaylistTrackIDsForUpdate :many
 SELECT track_id
 FROM playlist_tracks
 WHERE playlist_id = $1
-ORDER BY track_id ASC;
+ORDER BY track_id ASC
+FOR UPDATE;
+
+-- name: MaxPlaylistTrackPosition :one
+SELECT COALESCE(MAX(position), -1)::int
+FROM playlist_tracks
+WHERE playlist_id = $1;
 
 -- name: RemoveTrackFromPlaylist :one
 DELETE FROM playlist_tracks

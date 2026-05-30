@@ -11,6 +11,7 @@ var (
 	ErrForbidden         = errors.New("forbidden")
 	ErrTrackNotFound     = errors.New("track not found")
 	ErrDuplicateTrack    = errors.New("duplicate track")
+	ErrDuplicatePosition = errors.New("duplicate position")
 	ErrInvalidPosition   = errors.New("invalid position")
 	ErrInvalidTrackOrder = errors.New("invalid track reorder payload")
 )
@@ -73,12 +74,9 @@ func (s *service) Create(ctx context.Context, ownerID int64, in CreatePlaylistIn
 }
 
 func (s *service) GetByID(ctx context.Context, id, requesterID int64) (Playlist, error) {
-	playlist, err := s.getByID(ctx, id)
+	playlist, err := s.getReadablePlaylist(ctx, id, requesterID)
 	if err != nil {
 		return Playlist{}, err
-	}
-	if playlist.OwnerID != requesterID && !playlist.IsPublic {
-		return Playlist{}, ErrForbidden
 	}
 	return playlist, nil
 }
@@ -96,12 +94,9 @@ func (s *service) List(ctx context.Context, ownerID, limit, offset int64) ([]Pla
 }
 
 func (s *service) Update(ctx context.Context, id, ownerID int64, in UpdatePlaylistInput) (Playlist, error) {
-	prev, err := s.getByID(ctx, id)
+	prev, err := s.getOwnedPlaylist(ctx, id, ownerID)
 	if err != nil {
 		return Playlist{}, err
-	}
-	if prev.OwnerID != ownerID {
-		return Playlist{}, ErrForbidden
 	}
 	merged := UpdateInput{
 		ID:          id,
@@ -129,23 +124,17 @@ func (s *service) Update(ctx context.Context, id, ownerID int64, in UpdatePlayli
 }
 
 func (s *service) Delete(ctx context.Context, id, ownerID int64) error {
-	prev, err := s.getByID(ctx, id)
+	_, err := s.getOwnedPlaylist(ctx, id, ownerID)
 	if err != nil {
 		return err
-	}
-	if prev.OwnerID != ownerID {
-		return ErrForbidden
 	}
 	return s.repo.Delete(ctx, id)
 }
 
 func (s *service) AddTrack(ctx context.Context, playlistID, ownerID, trackID int64, position int32) error {
-	playlist, err := s.getByID(ctx, playlistID)
+	_, err := s.getOwnedPlaylist(ctx, playlistID, ownerID)
 	if err != nil {
 		return err
-	}
-	if playlist.OwnerID != ownerID {
-		return ErrForbidden
 	}
 	if position < 0 {
 		return ErrInvalidPosition
@@ -156,6 +145,8 @@ func (s *service) AddTrack(ctx context.Context, playlistID, ownerID, trackID int
 			return ErrTrackNotFound
 		case errors.Is(err, ErrRepoDuplicate):
 			return ErrDuplicateTrack
+		case errors.Is(err, ErrRepoDuplicatePosition):
+			return ErrDuplicatePosition
 		case errors.Is(err, ErrRepoInvalid):
 			return ErrInvalidPosition
 		default:
@@ -166,12 +157,9 @@ func (s *service) AddTrack(ctx context.Context, playlistID, ownerID, trackID int
 }
 
 func (s *service) RemoveTrack(ctx context.Context, playlistID, ownerID, trackID int64) error {
-	playlist, err := s.getByID(ctx, playlistID)
+	_, err := s.getOwnedPlaylist(ctx, playlistID, ownerID)
 	if err != nil {
 		return err
-	}
-	if playlist.OwnerID != ownerID {
-		return ErrForbidden
 	}
 	if err := s.repo.RemoveTrack(ctx, playlistID, trackID); err != nil {
 		if errors.Is(err, ErrRepoNotFound) {
@@ -183,12 +171,9 @@ func (s *service) RemoveTrack(ctx context.Context, playlistID, ownerID, trackID 
 }
 
 func (s *service) ListTracks(ctx context.Context, playlistID, requesterID, limit, offset int64) ([]PlaylistTrack, int64, error) {
-	playlist, err := s.getByID(ctx, playlistID)
+	_, err := s.getReadablePlaylist(ctx, playlistID, requesterID)
 	if err != nil {
 		return nil, 0, err
-	}
-	if playlist.OwnerID != requesterID && !playlist.IsPublic {
-		return nil, 0, ErrForbidden
 	}
 	total, err := s.repo.CountTracks(ctx, playlistID)
 	if err != nil {
@@ -202,33 +187,27 @@ func (s *service) ListTracks(ctx context.Context, playlistID, requesterID, limit
 }
 
 func (s *service) ReorderTracks(ctx context.Context, playlistID, ownerID int64, items []TrackPositionPatch) error {
-	playlist, err := s.getByID(ctx, playlistID)
+	_, err := s.getOwnedPlaylist(ctx, playlistID, ownerID)
 	if err != nil {
 		return err
-	}
-	if playlist.OwnerID != ownerID {
-		return ErrForbidden
 	}
 	if err := validateReorderItems(items); err != nil {
 		return err
-	}
-	existingTrackIDs, err := s.repo.ListTrackIDs(ctx, playlistID)
-	if err != nil {
-		return err
-	}
-	if !hasExactTrackSet(existingTrackIDs, items) {
-		return ErrInvalidTrackOrder
 	}
 	updates := make([]TrackPositionUpdate, 0, len(items))
 	for _, item := range items {
 		updates = append(updates, TrackPositionUpdate{TrackID: item.TrackID, Position: item.Position})
 	}
 	if err := s.repo.ReorderTracks(ctx, playlistID, updates); err != nil {
-		if errors.Is(err, ErrRepoNotFound) {
+		switch {
+		case errors.Is(err, ErrRepoNotFound):
 			return ErrTrackNotFound
-		}
-		if errors.Is(err, ErrRepoInvalid) {
+		case errors.Is(err, ErrRepoInvalid):
 			return ErrInvalidPosition
+		case errors.Is(err, ErrRepoInvalidTrackSet):
+			return ErrInvalidTrackOrder
+		case errors.Is(err, ErrRepoDuplicatePosition):
+			return ErrInvalidTrackOrder
 		}
 		return err
 	}
@@ -244,6 +223,32 @@ func (s *service) getByID(ctx context.Context, id int64) (Playlist, error) {
 		return Playlist{}, err
 	}
 	return playlist, nil
+}
+
+func (s *service) getOwnedPlaylist(ctx context.Context, id, ownerID int64) (Playlist, error) {
+	playlist, err := s.getByID(ctx, id)
+	if err != nil {
+		return Playlist{}, err
+	}
+	if playlist.OwnerID != ownerID {
+		return Playlist{}, ErrForbidden
+	}
+	return playlist, nil
+}
+
+func (s *service) getReadablePlaylist(ctx context.Context, id, requesterID int64) (Playlist, error) {
+	playlist, err := s.getByID(ctx, id)
+	if err != nil {
+		return Playlist{}, err
+	}
+	if !canRead(playlist, requesterID) {
+		return Playlist{}, ErrForbidden
+	}
+	return playlist, nil
+}
+
+func canRead(playlist Playlist, requesterID int64) bool {
+	return playlist.OwnerID == requesterID || playlist.IsPublic
 }
 
 func validateReorderItems(items []TrackPositionPatch) error {
@@ -263,20 +268,4 @@ func validateReorderItems(items []TrackPositionPatch) error {
 		seenPositions[item.Position] = struct{}{}
 	}
 	return nil
-}
-
-func hasExactTrackSet(existingTrackIDs []int64, items []TrackPositionPatch) bool {
-	if len(existingTrackIDs) != len(items) {
-		return false
-	}
-	existingSet := make(map[int64]struct{}, len(existingTrackIDs))
-	for _, id := range existingTrackIDs {
-		existingSet[id] = struct{}{}
-	}
-	for _, item := range items {
-		if _, ok := existingSet[item.TrackID]; !ok {
-			return false
-		}
-	}
-	return true
 }

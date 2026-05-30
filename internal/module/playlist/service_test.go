@@ -98,6 +98,9 @@ func (f *fakeRepo) AddTrack(_ context.Context, playlistID, trackID int64, positi
 		if item.ID == trackID {
 			return ErrRepoDuplicate
 		}
+		if item.Position == position {
+			return ErrRepoDuplicatePosition
+		}
 	}
 	f.tracks[playlistID] = append(f.tracks[playlistID], PlaylistTrack{
 		ID:       trackID,
@@ -133,17 +136,11 @@ func (f *fakeRepo) CountTracks(_ context.Context, playlistID int64) (int64, erro
 	return int64(len(f.tracks[playlistID])), nil
 }
 
-func (f *fakeRepo) ListTrackIDs(_ context.Context, playlistID int64) ([]int64, error) {
-	rows := f.tracks[playlistID]
-	out := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.ID)
-	}
-	return out, nil
-}
-
 func (f *fakeRepo) ReorderTracks(_ context.Context, playlistID int64, items []TrackPositionUpdate) error {
 	rows := f.tracks[playlistID]
+	if !fakeRepoHasExactTrackSet(rows, items) {
+		return ErrRepoInvalidTrackSet
+	}
 	for _, item := range items {
 		updated := false
 		for i, t := range rows {
@@ -159,6 +156,22 @@ func (f *fakeRepo) ReorderTracks(_ context.Context, playlistID int64, items []Tr
 	}
 	f.tracks[playlistID] = rows
 	return nil
+}
+
+func fakeRepoHasExactTrackSet(rows []PlaylistTrack, items []TrackPositionUpdate) bool {
+	if len(rows) != len(items) {
+		return false
+	}
+	existing := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		existing[row.ID] = struct{}{}
+	}
+	for _, item := range items {
+		if _, ok := existing[item.TrackID]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func TestService_GetByID_Private_NotOwner(t *testing.T) {
@@ -234,6 +247,18 @@ func TestService_AddTrack_Duplicate(t *testing.T) {
 	err := svc.AddTrack(context.Background(), 1, 1, 3, 1)
 	if !errors.Is(err, ErrDuplicateTrack) {
 		t.Fatalf("expected ErrDuplicateTrack, got %v", err)
+	}
+}
+
+func TestService_AddTrack_DuplicatePosition(t *testing.T) {
+	repo := &fakeRepo{
+		playlists: map[int64]Playlist{1: {ID: 1, OwnerID: 1}},
+		tracks:    map[int64][]PlaylistTrack{1: {{ID: 3, Position: 0}}},
+	}
+	svc := NewService(repo)
+	err := svc.AddTrack(context.Background(), 1, 1, 4, 0)
+	if !errors.Is(err, ErrDuplicatePosition) {
+		t.Fatalf("expected ErrDuplicatePosition, got %v", err)
 	}
 }
 
