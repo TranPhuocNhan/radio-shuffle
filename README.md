@@ -27,19 +27,22 @@ Mandatory domain modules (**user**, **station**, **track**, **playlist**, **stre
 
 ## Env
 
-See `.env.example`. Required variables for boot: **DATABASE_URL**, **JWT_SIGNING_KEY**.
+See `.env.example`. Required variables for boot: **DATABASE_URL**, **RABBITMQ_URL**, **JWT_SIGNING_KEY**.
 
 ## Run
 
 ```
 cp .env.example .env
-# start Postgres locally; then:
+# start Postgres and RabbitMQ locally; then:
+make integration-up
 make migrate-up
 go mod tidy
 make run
 ```
 
 Smoke: `curl -s localhost:8080/api/v1/ping`.
+
+Swagger UI: `http://localhost:8080/swagger`
 
 ## Responses
 

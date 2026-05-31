@@ -36,6 +36,7 @@ internal/
 │   ├── playlist/               ← Owner-managed playlists and playlist tracks
 │   └── stream/                 ← User listening sessions
 ├── platform/
+│   ├── apidocs/                ← gin-swagger UI wiring + embedded OpenAPI spec endpoint
 │   ├── config/                 ← Env/config loading via viper
 │   ├── database/               ← pgxpool connection factory
 │   ├── health/                 ← /health and /ready endpoints
@@ -76,6 +77,7 @@ cmd/api ──► internal/module/* ──► pkg/dbsqlc (generated)
   │
   ├──► internal/platform/config
   ├──► internal/platform/database
+  ├──► internal/platform/apidocs ──► docs/openapi.yaml (embedded)
   ├──► internal/platform/health
   └──► internal/router
 

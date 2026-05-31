@@ -17,6 +17,7 @@ import (
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/syncer"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/user"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/apidocs"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/database"
 	plhealth "github.com/tranphuocnhan/radio-shuffle/internal/platform/health"
@@ -79,6 +80,7 @@ func main() {
 	healthHandlers := plhealth.New(pool)
 	r.GET("/health", healthHandlers.Live)
 	r.GET("/ready", healthHandlers.Ready)
+	apidocs.RegisterRoutes(r)
 
 	api := r.Group("/api/v1")
 

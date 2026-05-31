@@ -1,0 +1,1691 @@
+openapi: 3.0.3
+info:
+  title: Radio Shuffle API
+  version: 0.1.0
+  description: HTTP API for authentication, stations, tracks, playlists, streams, synced Radio Browser stations, and admin sync jobs.
+servers:
+  - url: /api/v1
+    description: API v1
+  - url: /
+    description: Root health endpoints
+tags:
+  - name: Docs
+  - name: Health
+  - name: Auth
+  - name: Stations
+  - name: Tracks
+  - name: Playlists
+  - name: Streams
+  - name: Radio Browser
+  - name: Syncer
+paths:
+  /swagger:
+    get:
+      tags: [Docs]
+      operationId: swaggerUI
+      summary: Open Swagger UI
+      servers:
+        - url: /
+      responses:
+        "302":
+          description: Redirects to the Swagger UI index page.
+          headers:
+            Location:
+              schema:
+                type: string
+                example: /swagger/index.html
+  /swagger/index.html:
+    get:
+      tags: [Docs]
+      operationId: swaggerUIIndex
+      summary: Serve Swagger UI
+      servers:
+        - url: /
+      responses:
+        "200":
+          description: Swagger UI HTML.
+          content:
+            text/html:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/PlainInternalServerError"
+  /openapi.yaml:
+    get:
+      tags: [Docs]
+      operationId: openapiYAML
+      summary: Fetch the OpenAPI document
+      servers:
+        - url: /
+      responses:
+        "200":
+          description: OpenAPI YAML document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/PlainInternalServerError"
+  /health:
+    get:
+      tags: [Health]
+      operationId: liveHealth
+      summary: Check process liveness
+      servers:
+        - url: /
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        "500":
+          $ref: "#/components/responses/PlainInternalServerError"
+  /ready:
+    get:
+      tags: [Health]
+      operationId: readyHealth
+      summary: Check service readiness
+      servers:
+        - url: /
+      responses:
+        "200":
+          description: Service dependencies are ready.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        "503":
+          description: Database readiness check failed.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /ping:
+    get:
+      tags: [Health]
+      operationId: ping
+      summary: Check API availability
+      responses:
+        "200":
+          description: API is available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PingEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Register a user and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Authenticate a user and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: User authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: Rotate a refresh token and issue new tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Tokens refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Refresh token revoked.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations:
+    post:
+      tags: [Stations]
+      operationId: createStation
+      summary: Create a station
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStationRequest"
+      responses:
+        "201":
+          description: Station created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Stations]
+      operationId: listStations
+      summary: List stations
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Stations returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/followed:
+    get:
+      tags: [Stations]
+      operationId: listFollowedStations
+      summary: List stations followed by the current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Followed stations returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}:
+    get:
+      tags: [Stations]
+      operationId: getStation
+      summary: Get a station by ID
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "200":
+          description: Station returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Stations]
+      operationId: updateStation
+      summary: Update a station
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStationRequest"
+      responses:
+        "200":
+          description: Station updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Stations]
+      operationId: deleteStation
+      summary: Delete a station
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "204":
+          description: Station deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}/follow:
+    post:
+      tags: [Stations]
+      operationId: followStation
+      summary: Follow a station
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "204":
+          description: Station followed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Stations]
+      operationId: unfollowStation
+      summary: Unfollow a station
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "204":
+          description: Station unfollowed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}/following:
+    get:
+      tags: [Stations]
+      operationId: isFollowingStation
+      summary: Check if the current user follows a station
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "200":
+          description: Follow status returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowStatusEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}/followers/count:
+    get:
+      tags: [Stations]
+      operationId: countStationFollowers
+      summary: Count station followers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      responses:
+        "200":
+          description: Follower count returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowersCountEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}/tracks:
+    get:
+      tags: [Tracks]
+      operationId: listTracks
+      summary: List tracks for a station
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Tracks returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Tracks]
+      operationId: createTrack
+      summary: Create a track for a station
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrackRequest"
+      responses:
+        "201":
+          description: Track created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /stations/{station_id}/tracks/{id}:
+    get:
+      tags: [Tracks]
+      operationId: getTrack
+      summary: Get a track by ID
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Track returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Tracks]
+      operationId: updateTrack
+      summary: Update a track
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTrackRequest"
+      responses:
+        "200":
+          description: Track updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Tracks]
+      operationId: deleteTrack
+      summary: Delete a track
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StationID"
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Track deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /playlists:
+    post:
+      tags: [Playlists]
+      operationId: createPlaylist
+      summary: Create a playlist
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlaylistRequest"
+      responses:
+        "201":
+          description: Playlist created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Playlists]
+      operationId: listPlaylists
+      summary: List playlists owned by the current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Playlists returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /playlists/{id}:
+    get:
+      tags: [Playlists]
+      operationId: getPlaylist
+      summary: Get a playlist by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Playlist returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Playlists]
+      operationId: updatePlaylist
+      summary: Update a playlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePlaylistRequest"
+      responses:
+        "200":
+          description: Playlist updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Playlists]
+      operationId: deletePlaylist
+      summary: Delete a playlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Playlist deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /playlists/{id}/tracks:
+    post:
+      tags: [Playlists]
+      operationId: addPlaylistTrack
+      summary: Add a track to a playlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPlaylistTrackRequest"
+      responses:
+        "204":
+          description: Track added.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Playlists]
+      operationId: listPlaylistTracks
+      summary: List tracks in a playlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Playlist tracks returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistTrackListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /playlists/{id}/tracks/{track_id}:
+    delete:
+      tags: [Playlists]
+      operationId: removePlaylistTrack
+      summary: Remove a track from a playlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/TrackID"
+      responses:
+        "204":
+          description: Track removed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /playlists/{id}/tracks/reorder:
+    patch:
+      tags: [Playlists]
+      operationId: reorderPlaylistTracks
+      summary: Reorder playlist tracks
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderPlaylistTracksRequest"
+      responses:
+        "204":
+          description: Tracks reordered.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /streams:
+    post:
+      tags: [Streams]
+      operationId: startStream
+      summary: Start a listening stream
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartStreamRequest"
+      responses:
+        "201":
+          description: Stream started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Streams]
+      operationId: listStreams
+      summary: List current user's streams
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Streams returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /streams/{id}:
+    get:
+      tags: [Streams]
+      operationId: getStream
+      summary: Get a stream by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Stream returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /streams/{id}/end:
+    patch:
+      tags: [Streams]
+      operationId: endStream
+      summary: End a listening stream
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Stream ended.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /radio-browser/stations:
+    get:
+      tags: [Radio Browser]
+      operationId: listRadioBrowserStations
+      summary: List synced Radio Browser stations
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive station name filter.
+        - name: country
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive country filter.
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive language filter.
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Synced Radio Browser stations returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RadioBrowserStationListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /syncer/trigger:
+    post:
+      tags: [Syncer]
+      operationId: triggerSync
+      summary: Trigger a full Radio Browser sync
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Sync job accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerSyncEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /syncer/status/{request_id}:
+    get:
+      tags: [Syncer]
+      operationId: getSyncStatus
+      summary: Get sync job status
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestID"
+      responses:
+        "200":
+          description: Sync job status returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatusEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Numeric resource ID.
+    StationID:
+      name: station_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Numeric station ID.
+    TrackID:
+      name: track_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Numeric track ID.
+    RequestID:
+      name: request_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Sync job request ID.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        default: 20
+      description: Requested page size. Values <= 0 are normalized to 20; values > 100 are capped at 100.
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        default: 0
+      description: Zero-based item offset. Negative values are normalized to 0.
+  responses:
+    BadRequest:
+      description: Invalid path parameter, query parameter, or request body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing, invalid, or unauthorized credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Authenticated user is not allowed to access the resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Request conflicts with current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    PlainInternalServerError:
+      description: Unexpected server error.
+      content:
+        text/plain:
+          schema:
+            type: string
+  schemas:
+    ErrorObject:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, INTERNAL_ERROR]
+        message:
+          type: string
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+    ErrorEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        data:
+          type: object
+          nullable: true
+        error:
+          $ref: "#/components/schemas/ErrorObject"
+    SuccessEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          nullable: true
+        error:
+          type: object
+          nullable: true
+    PaginationMeta:
+      type: object
+      required: [page, limit, total]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    PingData:
+      type: object
+      required: [service]
+      properties:
+        service:
+          type: string
+          example: radio-shuffle
+    PingEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PingData"
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+    AuthEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AuthResponse"
+    CreateStationRequest:
+      type: object
+      required: [name, stream_url]
+      properties:
+        name:
+          type: string
+        genre:
+          type: string
+        description:
+          type: string
+          nullable: true
+        stream_url:
+          type: string
+        cover_image_url:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+          nullable: true
+        owner_id:
+          type: integer
+          format: int64
+          nullable: true
+    UpdateStationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        genre:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        stream_url:
+          type: string
+          nullable: true
+        cover_image_url:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+          nullable: true
+        owner_id:
+          type: integer
+          format: int64
+          nullable: true
+    StationResponse:
+      type: object
+      required: [id, name, genre, description, stream_url, cover_image_url, is_public, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        genre:
+          type: string
+        description:
+          type: string
+          nullable: true
+        stream_url:
+          type: string
+        cover_image_url:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+        owner_id:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    StationEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StationResponse"
+    StationListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/StationResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    FollowStatusResponse:
+      type: object
+      required: [following]
+      properties:
+        following:
+          type: boolean
+    FollowStatusEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FollowStatusResponse"
+    FollowersCountResponse:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          format: int64
+    FollowersCountEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FollowersCountResponse"
+    CreateTrackRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        artist:
+          type: string
+        audio_url:
+          type: string
+        duration_seconds:
+          type: integer
+          format: int32
+    UpdateTrackRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        artist:
+          type: string
+          nullable: true
+        audio_url:
+          type: string
+          nullable: true
+        duration_seconds:
+          type: integer
+          format: int32
+          nullable: true
+    TrackResponse:
+      type: object
+      required: [id, station_id, title, artist, audio_url, duration_seconds, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        station_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        artist:
+          type: string
+        audio_url:
+          type: string
+        duration_seconds:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TrackEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TrackResponse"
+    TrackListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrackResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    CreatePlaylistRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+    UpdatePlaylistRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+          nullable: true
+      description: At least one property must be present.
+    PlaylistResponse:
+      type: object
+      required: [id, name, description, is_public, owner_id, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+        owner_id:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PlaylistEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PlaylistResponse"
+    PlaylistListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/PlaylistResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    AddPlaylistTrackRequest:
+      type: object
+      required: [track_id, position]
+      properties:
+        track_id:
+          type: integer
+          format: int64
+        position:
+          type: integer
+          format: int32
+          minimum: 0
+    ReorderPlaylistTracksRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PlaylistTrackPosition"
+      description: Items cannot be empty and must include the exact existing track set for the playlist.
+    PlaylistTrackPosition:
+      type: object
+      required: [track_id]
+      properties:
+        track_id:
+          type: integer
+          format: int64
+        position:
+          type: integer
+          format: int32
+          minimum: 0
+    PlaylistTrackResponse:
+      type: object
+      required: [id, station_id, title, artist, audio_url, duration_seconds, position, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        station_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        artist:
+          type: string
+        audio_url:
+          type: string
+        duration_seconds:
+          type: integer
+          format: int32
+        position:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PlaylistTrackListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/PlaylistTrackResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    StartStreamRequest:
+      type: object
+      required: [station_id]
+      properties:
+        station_id:
+          type: integer
+          format: int64
+    StreamResponse:
+      type: object
+      required: [id, user_id, station_id, started_at, ended_at, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        user_id:
+          type: integer
+          format: int64
+        station_id:
+          type: integer
+          format: int64
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    StreamEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StreamResponse"
+    StreamListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/StreamResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    RadioBrowserStationResponse:
+      type: object
+      required:
+        - id
+        - station_uuid
+        - name
+        - url
+        - url_resolved
+        - homepage
+        - favicon
+        - country
+        - country_code
+        - state
+        - language
+        - codec
+        - bitrate
+        - votes
+        - tags
+        - last_check_ok
+        - synced_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        station_uuid:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        url_resolved:
+          type: string
+          nullable: true
+        homepage:
+          type: string
+          nullable: true
+        favicon:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        country_code:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+        codec:
+          type: string
+          nullable: true
+        bitrate:
+          type: integer
+          format: int32
+        votes:
+          type: integer
+          format: int32
+        tags:
+          type: string
+          nullable: true
+        last_check_ok:
+          type: boolean
+        synced_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RadioBrowserStationListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          required: [meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/RadioBrowserStationResponse"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    TriggerSyncResponse:
+      type: object
+      required: [request_id, status_url]
+      properties:
+        request_id:
+          type: string
+        status_url:
+          type: string
+    TriggerSyncEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TriggerSyncResponse"
+    SyncStatusResponse:
+      type: object
+      required: [request_id, status, requested_by, scope, created_at]
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        requested_by:
+          type: string
+        scope:
+          description: Raw JSON sync scope.
+        error:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    SyncStatusEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SyncStatusResponse"

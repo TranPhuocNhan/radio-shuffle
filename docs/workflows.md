@@ -49,6 +49,18 @@
 Retries use the TTL-based retry queue (`syncer.jobs.retry`). Failed messages after
 `SYNC_MAX_RETRIES` are routed to the DLQ (`syncer.jobs.dlq`).
 
+## API Documentation Workflow
+
+The OpenAPI source of truth is `docs/openapi.yaml`.
+
+When changing HTTP routes, handler DTOs, response DTOs, auth middleware placement,
+query parameters, path parameters, or error mappings:
+
+1. Update `docs/openapi.yaml`
+2. Update `docs/openapi-report.md` if the endpoint inventory or known mismatches change
+3. Keep reusable component schemas aligned with `internal/module/*/dto.go`
+4. Re-run the full validation sequence before declaring the change complete
+
 ## Full Validation Sequence
 
 MANDATORY before declaring any task complete:
