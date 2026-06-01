@@ -46,6 +46,13 @@
 4. Sync status is stored in `sync_jobs`
 5. Admin checks status via `GET /syncer/status/:request_id`
 
+Only one sync job can be pending or running at a time. Additional trigger
+requests return `409 CONFLICT` until the active job completes or fails.
+
+Radio Browser station writes are idempotent: duplicate `stationuuid` rows are only
+updated when persisted fields differ from the incoming API payload. New UUIDs are
+also skipped when the same stream URL already exists locally.
+
 Retries use the TTL-based retry queue (`syncer.jobs.retry`). Failed messages after
 `SYNC_MAX_RETRIES` are routed to the DLQ (`syncer.jobs.dlq`).
 

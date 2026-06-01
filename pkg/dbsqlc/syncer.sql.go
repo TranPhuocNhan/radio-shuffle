@@ -32,6 +32,30 @@ func (q *Queries) CreateSyncJob(ctx context.Context, arg CreateSyncJobParams) er
 	return err
 }
 
+const GetActiveSyncJob = `-- name: GetActiveSyncJob :one
+SELECT request_id, status, requested_by, scope, error_message, started_at, finished_at, created_at
+FROM sync_jobs
+WHERE status IN ('pending', 'running')
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetActiveSyncJob(ctx context.Context) (SyncJobs, error) {
+	row := q.db.QueryRow(ctx, GetActiveSyncJob)
+	var i SyncJobs
+	err := row.Scan(
+		&i.RequestID,
+		&i.Status,
+		&i.RequestedBy,
+		&i.Scope,
+		&i.ErrorMessage,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const GetSyncJobByID = `-- name: GetSyncJobByID :one
 SELECT request_id, status, requested_by, scope, error_message, started_at, finished_at, created_at
 FROM sync_jobs

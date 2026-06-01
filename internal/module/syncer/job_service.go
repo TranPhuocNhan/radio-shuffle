@@ -56,6 +56,14 @@ func NewJobProcessor(repo Repository, sync Service) JobProcessor {
 }
 
 func (s *jobService) Trigger(ctx context.Context, requestedBy string) (SyncJob, error) {
+	activeJob, err := s.repo.GetActiveSyncJob(ctx)
+	if err != nil && !errors.Is(err, ErrRepoJobNotFound) {
+		return SyncJob{}, err
+	}
+	if activeJob.RequestID != "" {
+		return SyncJob{}, ErrJobInProgress
+	}
+
 	requestID, err := newRequestID()
 	if err != nil {
 		return SyncJob{}, err

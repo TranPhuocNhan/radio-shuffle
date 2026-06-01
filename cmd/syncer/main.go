@@ -74,7 +74,11 @@ func main() {
 
 	for {
 		select {
-		case msg := <-msgs:
+		case msg, ok := <-msgs:
+			if !ok {
+				slog.Error("rabbitmq consumer channel closed", "queue", cfg.SyncQueue)
+				return
+			}
 			handleMessage(ctx, mqClient, processor, cfg, msg)
 		case <-ctx.Done():
 			slog.Info("syncer shutting down")
@@ -84,47 +88,172 @@ func main() {
 }
 
 func handleMessage(ctx context.Context, mqClient *mq.Client, processor syncer.JobProcessor, cfg config.Config, msg amqp091.Delivery) {
+	headerRequestID := requestIDFromHeaders(msg.Headers)
+	retryCount := retryCountFromHeaders(msg.Headers)
+	slog.Info(
+		"rabbitmq message received",
+		"request_id", headerRequestID,
+		"routing_key", msg.RoutingKey,
+		"delivery_tag", msg.DeliveryTag,
+		"retry", retryCount,
+	)
+
 	var payload mq.SyncRequestedMessage
 	if err := json.Unmarshal(msg.Body, &payload); err != nil {
-		slog.Error("invalid sync request", "err", err)
-		_ = publishToDLQ(ctx, mqClient, msg, 0)
-		_ = msg.Ack(false)
+		slog.Error(
+			"invalid sync request",
+			"request_id", headerRequestID,
+			"routing_key", msg.RoutingKey,
+			"delivery_tag", msg.DeliveryTag,
+			"retry", retryCount,
+			"err", err,
+		)
+		if err := publishToDLQ(ctx, mqClient, msg, 0); err != nil {
+			slog.Error(
+				"invalid sync request dlq publish failed",
+				"request_id", headerRequestID,
+				"routing_key", msg.RoutingKey,
+				"delivery_tag", msg.DeliveryTag,
+				"err", err,
+			)
+			nackMessage(msg, headerRequestID, true, "invalid sync request nacked")
+			return
+		}
+		slog.Error(
+			"invalid sync request sent to dlq",
+			"request_id", headerRequestID,
+			"routing_key", "sync.requested.dlq",
+			"delivery_tag", msg.DeliveryTag,
+		)
+		ackMessage(msg, headerRequestID, "invalid sync request acknowledged")
 		return
 	}
 	cmd := syncer.FromSyncRequestedMessage(payload)
 
-	retryCount := retryCountFromHeaders(msg.Headers)
-
+	slog.Info(
+		"sync processing started",
+		"request_id", cmd.RequestID,
+		"requested_by", cmd.RequestedBy,
+		"routing_key", msg.RoutingKey,
+		"delivery_tag", msg.DeliveryTag,
+		"retry", retryCount,
+	)
 	result, err := processor.Process(ctx, cmd)
 	if err == nil {
-		slog.Info("sync completed", "request_id", cmd.RequestID, "fetched", result.Fetched, "upserted", result.Upserted)
-		_ = msg.Ack(false)
+		slog.Info(
+			"sync business result",
+			"request_id", cmd.RequestID,
+			"requested_by", cmd.RequestedBy,
+			"status", "completed",
+			"fetched", result.Fetched,
+			"upserted", result.Upserted,
+			"retry", retryCount,
+		)
+		ackMessage(msg, cmd.RequestID, "sync completed acknowledged")
 		return
 	}
 	if errors.Is(err, syncer.ErrJobDuplicate) || errors.Is(err, syncer.ErrJobInProgress) {
-		slog.Warn("sync skipped", "request_id", cmd.RequestID, "err", err)
-		_ = msg.Ack(false)
+		slog.Warn(
+			"sync business result",
+			"request_id", cmd.RequestID,
+			"requested_by", cmd.RequestedBy,
+			"status", "skipped",
+			"fetched", result.Fetched,
+			"upserted", result.Upserted,
+			"retry", retryCount,
+			"err", err,
+		)
+		ackMessage(msg, cmd.RequestID, "sync skipped acknowledged")
 		return
 	}
+	slog.Error(
+		"sync business result",
+		"request_id", cmd.RequestID,
+		"requested_by", cmd.RequestedBy,
+		"status", "failed",
+		"fetched", result.Fetched,
+		"upserted", result.Upserted,
+		"retry", retryCount,
+		"err", err,
+	)
 
 	if retryCount >= cfg.SyncMaxRetries {
 		slog.Error("sync failed, sending to dlq", "request_id", cmd.RequestID, "retry", retryCount, "err", err)
 		if err := publishToDLQ(ctx, mqClient, msg, retryCount); err != nil {
 			slog.Error("dlq publish failed", "err", err)
-			_ = msg.Nack(false, true)
+			nackMessage(msg, cmd.RequestID, true, "dlq publish failed nacked")
 			return
 		}
-		_ = msg.Ack(false)
+		slog.Error(
+			"sync message sent to dlq",
+			"request_id", cmd.RequestID,
+			"routing_key", "sync.requested.dlq",
+			"delivery_tag", msg.DeliveryTag,
+			"retry", retryCount,
+		)
+		ackMessage(msg, cmd.RequestID, "sync dlq acknowledged")
 		return
 	}
 
 	if err := publishToRetry(ctx, mqClient, msg, retryCount+1); err != nil {
 		slog.Error("retry publish failed", "err", err)
-		_ = msg.Nack(false, true)
+		nackMessage(msg, cmd.RequestID, true, "retry publish failed nacked")
 		return
 	}
 	slog.Warn("sync failed, retry scheduled", "request_id", cmd.RequestID, "retry", retryCount+1, "err", err)
-	_ = msg.Ack(false)
+	ackMessage(msg, cmd.RequestID, "sync retry acknowledged")
+}
+
+func ackMessage(msg amqp091.Delivery, requestID string, successMessage string) {
+	if err := msg.Ack(false); err != nil {
+		slog.Error(
+			"rabbitmq ack failed",
+			"request_id", requestID,
+			"routing_key", msg.RoutingKey,
+			"delivery_tag", msg.DeliveryTag,
+			"err", err,
+		)
+		return
+	}
+	slog.Info(
+		successMessage,
+		"request_id", requestID,
+		"routing_key", msg.RoutingKey,
+		"delivery_tag", msg.DeliveryTag,
+	)
+}
+
+func nackMessage(msg amqp091.Delivery, requestID string, requeue bool, successMessage string) {
+	if err := msg.Nack(false, requeue); err != nil {
+		slog.Error(
+			"rabbitmq nack failed",
+			"request_id", requestID,
+			"routing_key", msg.RoutingKey,
+			"delivery_tag", msg.DeliveryTag,
+			"requeue", requeue,
+			"err", err,
+		)
+		return
+	}
+	slog.Warn(
+		successMessage,
+		"request_id", requestID,
+		"routing_key", msg.RoutingKey,
+		"delivery_tag", msg.DeliveryTag,
+		"requeue", requeue,
+	)
+}
+
+func requestIDFromHeaders(headers amqp091.Table) string {
+	if headers == nil {
+		return ""
+	}
+	if v, ok := headers["x-request-id"]; ok {
+		if requestID, ok := v.(string); ok {
+			return requestID
+		}
+	}
+	return ""
 }
 
 func retryCountFromHeaders(headers amqp091.Table) int {

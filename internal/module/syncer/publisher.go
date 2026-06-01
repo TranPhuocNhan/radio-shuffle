@@ -3,14 +3,15 @@ package syncer
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mq"
 )
 
 type publisher struct {
-	client    *mq.Client
-	routeKey  string
+	client   *mq.Client
+	routeKey string
 }
 
 func NewPublisher(client *mq.Client, routeKey string) JobPublisher {
@@ -24,8 +25,30 @@ func (p *publisher) PublishSyncCommand(ctx context.Context, cmd SyncCommand) err
 		return err
 	}
 	headers := amqp091.Table{
-		"x-request-id": cmd.RequestID,
+		"x-request-id":  cmd.RequestID,
 		"x-retry-count": int32(0),
 	}
-	return p.client.Publish(ctx, p.routeKey, body, headers)
+	slog.Info(
+		"rabbitmq publish sync requested",
+		"request_id", cmd.RequestID,
+		"requested_by", cmd.RequestedBy,
+		"routing_key", p.routeKey,
+	)
+	if err := p.client.Publish(ctx, p.routeKey, body, headers); err != nil {
+		slog.Error(
+			"rabbitmq publish sync failed",
+			"request_id", cmd.RequestID,
+			"requested_by", cmd.RequestedBy,
+			"routing_key", p.routeKey,
+			"err", err,
+		)
+		return err
+	}
+	slog.Info(
+		"rabbitmq publish sync completed",
+		"request_id", cmd.RequestID,
+		"requested_by", cmd.RequestedBy,
+		"routing_key", p.routeKey,
+	)
+	return nil
 }

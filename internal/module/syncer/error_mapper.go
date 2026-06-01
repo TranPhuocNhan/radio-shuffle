@@ -13,6 +13,9 @@ func MapError(c *gin.Context, err error) bool {
 	case errors.Is(err, ErrJobNotFound):
 		response.NotFound(c, "sync job not found")
 		return true
+	case errors.Is(err, ErrJobInProgress):
+		response.Conflict(c, "sync job already running")
+		return true
 	default:
 		return false
 	}

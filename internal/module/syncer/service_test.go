@@ -10,8 +10,9 @@ import (
 
 // fakeRepo is an in-memory Repository stub.
 type fakeRepo struct {
-	upserted []UpsertInput
-	err      error
+	upserted     []UpsertInput
+	affectedRows *int64
+	err          error
 }
 
 func (f *fakeRepo) UpsertBatch(_ context.Context, stations []UpsertInput) (int64, error) {
@@ -19,11 +20,18 @@ func (f *fakeRepo) UpsertBatch(_ context.Context, stations []UpsertInput) (int64
 		return 0, f.err
 	}
 	f.upserted = append(f.upserted, stations...)
+	if f.affectedRows != nil {
+		return *f.affectedRows, nil
+	}
 	return int64(len(stations)), nil
 }
 
 func (f *fakeRepo) CreateSyncJob(_ context.Context, _ CreateSyncJobInput) error {
 	return errors.New("unexpected CreateSyncJob")
+}
+
+func (f *fakeRepo) GetActiveSyncJob(_ context.Context) (SyncJob, error) {
+	return SyncJob{}, errors.New("unexpected GetActiveSyncJob")
 }
 
 func (f *fakeRepo) GetSyncJob(_ context.Context, _ string) (SyncJob, error) {
@@ -151,6 +159,30 @@ func TestService_Sync_EmptyResponse(t *testing.T) {
 	}
 	if result.Fetched != 0 || result.Upserted != 0 {
 		t.Errorf("expected zero result, got %+v", result)
+	}
+}
+
+func TestService_Sync_ReportsAffectedRows(t *testing.T) {
+	affectedRows := int64(0)
+	repo := &fakeRepo{affectedRows: &affectedRows}
+	svc := &testService{
+		repo:     repo,
+		client:   &fakeClient{pages: [][]radiobrowser.Station{makeStations(2, 0)}},
+		pageSize: 3,
+	}
+
+	result, err := svc.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Fetched != 2 {
+		t.Errorf("fetched: got %d, want 2", result.Fetched)
+	}
+	if result.Upserted != 0 {
+		t.Errorf("upserted: got %d, want 0", result.Upserted)
+	}
+	if len(repo.upserted) != 2 {
+		t.Errorf("repo received %d stations, want 2", len(repo.upserted))
 	}
 }
 

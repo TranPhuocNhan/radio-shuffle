@@ -63,6 +63,9 @@
 - Use `log/slog` everywhere — not `log`, not `fmt.Println`
 - Structured key-value pairs: `slog.Error("sync failed", "err", err)`
 - HTTP request logging is handled by `mw.LoggerStructured()` — do not add per-handler logs
+- HTTP handler errors are logged centrally by `httperr.Handle`; handlers should return errors instead of logging them
+- Internal server errors return a generic client message; log records carry the real `err`, `request_id`, route, status, and request metadata
+- Do not log `Authorization`, cookies, access/refresh tokens, passwords, raw request bodies, or database URLs
 
 ## Testing
 

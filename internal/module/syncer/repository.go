@@ -86,6 +86,7 @@ type Repository interface {
 	UpsertBatch(ctx context.Context, stations []UpsertInput) (int64, error)
 
 	CreateSyncJob(ctx context.Context, in CreateSyncJobInput) error
+	GetActiveSyncJob(ctx context.Context) (SyncJob, error)
 	GetSyncJob(ctx context.Context, requestID string) (SyncJob, error)
 	MarkSyncJobRunning(ctx context.Context, requestID string) error
 	MarkSyncJobCompleted(ctx context.Context, requestID string) error

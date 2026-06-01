@@ -3,22 +3,23 @@ package mq
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type Config struct {
-	URL            string
-	Exchange       string
-	Queue          string
-	RetryQueue     string
-	DLQ            string
-	RetryTTLMS     int
-	MaxRetries     int
-	RetryRouteKey  string
-	MainRouteKey   string
-	DLQRouteKey    string
-	PrefetchCount  int
+	URL           string
+	Exchange      string
+	Queue         string
+	RetryQueue    string
+	DLQ           string
+	RetryTTLMS    int
+	MaxRetries    int
+	RetryRouteKey string
+	MainRouteKey  string
+	DLQRouteKey   string
+	PrefetchCount int
 }
 
 type Client struct {
@@ -32,6 +33,8 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial rabbitmq: %w", err)
 	}
+	slog.Info("rabbitmq connected")
+
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
@@ -50,6 +53,17 @@ func New(cfg Config) (*Client, error) {
 			return nil, fmt.Errorf("set qos: %w", err)
 		}
 	}
+	slog.Info(
+		"rabbitmq ready",
+		"exchange", cfg.Exchange,
+		"queue", cfg.Queue,
+		"retry_queue", cfg.RetryQueue,
+		"dlq", cfg.DLQ,
+		"main_routing_key", cfg.MainRouteKey,
+		"retry_routing_key", cfg.RetryRouteKey,
+		"dlq_routing_key", cfg.DLQRouteKey,
+		"prefetch_count", cfg.PrefetchCount,
+	)
 	return client, nil
 }
 
@@ -104,6 +118,13 @@ func (c *Client) declareTopology() error {
 	if err := c.ch.QueueBind(cfg.DLQ, cfg.DLQRouteKey, cfg.Exchange, false, nil); err != nil {
 		return fmt.Errorf("bind dlq: %w", err)
 	}
+	slog.Info(
+		"rabbitmq topology declared",
+		"exchange", cfg.Exchange,
+		"queue", cfg.Queue,
+		"retry_queue", cfg.RetryQueue,
+		"dlq", cfg.DLQ,
+		"retry_ttl_ms", cfg.RetryTTLMS,
+	)
 	return nil
 }
-

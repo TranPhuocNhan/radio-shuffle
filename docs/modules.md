@@ -93,7 +93,9 @@ Consumed by `auth` via `auth/adapters/auth_user.go`.
 Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
 
 - Consumes `sync.requested` events from RabbitMQ
-- Uses `UpsertBatch` with ON CONFLICT DO UPDATE in `radio_browser_stations`
+- Allows only one pending/running sync job at a time; overlapping trigger requests return conflict
+- Uses `UpsertBatch` with `ON CONFLICT DO UPDATE` in `radio_browser_stations`, but skips conflict updates when the incoming row is identical and skips new UUIDs that reuse an existing stream URL
+- `SyncResult.Upserted` counts rows inserted or changed, not every fetched API record
 - Exposes `Service.Sync(ctx) (SyncResult, error)` — called by the RabbitMQ worker
 - API handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - Sync job repository no-row errors map to `ErrRepoJobNotFound`; job service maps that to `ErrJobNotFound`

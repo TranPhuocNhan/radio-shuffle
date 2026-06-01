@@ -112,6 +112,8 @@ HTTP request
   ← response.*           JSON envelope
 ```
 
+Request completion logs are emitted by `mw.LoggerStructured()` with `request_id`, method, path, route, query, status, latency, client IP, user agent, optional `user_id`, and response size. Handler/service errors are logged only in `httperr.Handle`, so module handlers do not need their own request logs. Panic recovery logs the same request context plus a stack trace.
+
 ## Playlist Track Ordering
 
 Playlist track positions are unique and non-negative within each playlist.
@@ -137,6 +139,8 @@ All responses use `internal/platform/response` helpers — never construct manua
 ```
 
 Error codes: `VALIDATION_ERROR` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_FOUND` · `CONFLICT` · `INTERNAL_ERROR`
+
+`INTERNAL_ERROR` responses use a generic `"internal error"` message for clients. The original error detail is available in structured server logs, correlated by `request_id`.
 
 ## Tech Stack
 
