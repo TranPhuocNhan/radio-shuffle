@@ -40,11 +40,47 @@
 
 ## Syncer Event Workflow
 
+The syncer is event-driven so the HTTP API does not block on a full Radio
+Browser crawl. The API is the event producer; `cmd/syncer` is the event consumer.
+
+### Trigger Path
+
 1. Admin calls `POST /syncer/trigger` (JWT + admin role required)
-2. API publishes `sync.requested` to RabbitMQ
-3. Syncer worker consumes the event and runs `Service.Sync`
-4. Sync status is stored in `sync_jobs`
-5. Admin checks status via `GET /syncer/status/:request_id`
+2. `syncer.Handler.Trigger` extracts the admin user ID from auth context
+3. `syncer.JobService.Trigger` checks `sync_jobs` for an active `pending` or `running` job
+4. If no active job exists, the job service creates a new `pending` job with scope `{"mode":"full"}`
+5. `syncer.Publisher` maps the domain `SyncCommand` to `mq.SyncRequestedMessage`
+6. The API publishes `sync.requested` to the `sync.events` RabbitMQ exchange
+7. The API returns `202 Accepted` with the `request_id` and status URL
+
+If publishing fails after the row is created, the job is marked `failed` and the
+trigger request returns the publish error.
+
+### Worker Path
+
+1. `cmd/syncer` consumes from `syncer.jobs` with manual acknowledgements and `PrefetchCount=1`
+2. The worker decodes `mq.SyncRequestedMessage` and maps it back to `syncer.SyncCommand`
+3. `syncer.JobProcessor.Process` loads or creates the matching `sync_jobs` row
+4. Completed jobs are treated as duplicates and acknowledged without re-running
+5. Running jobs are treated as in-progress and acknowledged without re-running
+6. Pending or failed jobs are marked `running`
+7. `syncer.Service.Sync` fetches Radio Browser stations in batches and calls `Repository.UpsertBatch`
+8. On success, the job is marked `completed` and the message is acknowledged
+9. On business failure, the job is marked `failed` and the message is sent to retry or DLQ
+
+### Status Model
+
+| Status | Meaning |
+|---|---|
+| `pending` | API accepted the request and published, or the worker created the row from an event |
+| `running` | Worker claimed the job and is fetching/upserting Radio Browser stations |
+| `completed` | Worker finished all batches successfully |
+| `failed` | Publish failed or worker processing failed; `error_message` contains the failure |
+
+Admin status checks use `GET /syncer/status/:request_id`, which reads the
+`sync_jobs` row and maps missing jobs to `404 NOT_FOUND`.
+
+### Retry And DLQ Behavior
 
 Only one sync job can be pending or running at a time. Additional trigger
 requests return `409 CONFLICT` until the active job completes or fails.
@@ -55,6 +91,26 @@ also skipped when the same stream URL already exists locally.
 
 Retries use the TTL-based retry queue (`syncer.jobs.retry`). Failed messages after
 `SYNC_MAX_RETRIES` are routed to the DLQ (`syncer.jobs.dlq`).
+
+The retry queue is bound with routing key `sync.requested.retry`. It has
+`x-message-ttl=SYNC_RETRY_TTL_MS` and dead-letters expired messages back to
+`sync.events` with routing key `sync.requested`, so delayed retries re-enter the
+main worker queue. The worker increments the `x-retry-count` header before
+publishing to retry or DLQ.
+
+Invalid JSON messages cannot be converted into a sync command, so they are sent
+directly to the DLQ and then acknowledged.
+
+### Event Configuration
+
+| Environment variable | Default | Purpose |
+|---|---|---|
+| `SYNC_EVENTS_EXCHANGE` | `sync.events` | Direct exchange used for sync events |
+| `SYNC_QUEUE` | `syncer.jobs` | Main worker queue |
+| `SYNC_RETRY_QUEUE` | `syncer.jobs.retry` | TTL retry queue |
+| `SYNC_DLQ` | `syncer.jobs.dlq` | Dead-letter queue |
+| `SYNC_RETRY_TTL_MS` | `60000` | Delay before retry messages return to the main queue |
+| `SYNC_MAX_RETRIES` | `5` | Maximum worker retries before DLQ |
 
 ## API Documentation Workflow
 

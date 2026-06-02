@@ -90,13 +90,20 @@ Consumed by `auth` via `auth/adapters/auth_user.go`.
 
 ### `syncer`
 
-Ingests Radio Browser stations in paginated batches via `radiobrowser.Client`.
+Owns the Radio Browser ingestion use case and sync job state machine.
 
-- Consumes `sync.requested` events from RabbitMQ
+- Splits into two runtime surfaces:
+  - API producer path: `Handler.Trigger` -> `JobService.Trigger` -> `CreateSyncJob(pending)` -> publish `sync.requested`
+  - Worker consumer path: `cmd/syncer` -> `JobProcessor.Process` -> `Service.Sync` -> Radio Browser fetch/upsert
+- Consumes `sync.requested` events from RabbitMQ through the standalone `cmd/syncer` process
 - Allows only one pending/running sync job at a time; overlapping trigger requests return conflict
+- Tracks job statuses as `pending`, `running`, `completed`, and `failed`
+- Uses `SyncCommand` as the domain command and maps it to/from `mq.SyncRequestedMessage` at the MQ boundary
+- Uses manual RabbitMQ ack/nack in the worker; failed jobs are retried through `syncer.jobs.retry` and exhausted/invalid messages go to `syncer.jobs.dlq`
 - Uses `UpsertBatch` with `ON CONFLICT DO UPDATE` in `radio_browser_stations`, but skips conflict updates when the incoming row is identical and skips new UUIDs that reuse an existing stream URL
 - `SyncResult.Upserted` counts rows inserted or changed, not every fetched API record
-- Exposes `Service.Sync(ctx) (SyncResult, error)` — called by the RabbitMQ worker
+- Exposes `Service.Sync(ctx) (SyncResult, error)` for the worker ingestion use case
+- Exposes `JobService.Trigger` and `JobService.Status` for admin HTTP endpoints
 - API handlers return errors and routes use `httperr.Wrap(..., MapError)`
 - Sync job repository no-row errors map to `ErrRepoJobNotFound`; job service maps that to `ErrJobNotFound`
 - Admin endpoints:

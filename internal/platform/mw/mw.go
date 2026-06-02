@@ -87,6 +87,7 @@ func RequestLogAttrs(c *gin.Context, extra ...any) []any {
 		"route", routePath(c),
 		"query", c.Request.URL.RawQuery,
 		"client_ip", c.ClientIP(),
+		"user_agent", c.Request.UserAgent(),
 	}
 	if userID, ok := UserIDFromContext(c); ok {
 		attrs = append(attrs, "user_id", userID)

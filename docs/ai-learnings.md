@@ -27,3 +27,8 @@ Internal errors should not be echoed to API clients. Return the generic `INTERNA
 Repeated manual triggers can still create multiple full crawls with different request IDs. The syncer now rejects new triggers while any job is `pending` or `running`, so trigger spam cannot enqueue overlapping Radio Browser crawls.
 
 Radio Browser can expose multiple UUIDs for the same stream URL. The sync insert now skips a new UUID when that URL is already present locally, keeping the local station set keyed by stream identity instead of only by external UUID.
+
+### 2026-06-02 — Syncer Event Boundary
+The syncer is event-driven, but RabbitMQ remains infrastructure rather than a business boundary. `internal/module/syncer` owns `SyncCommand`, sync job statuses, overlap rejection, and processing decisions; `internal/platform/mq` only declares topology, publishes JSON payloads, and consumes deliveries.
+
+The API process is a producer only: it creates a `pending` sync job and publishes `sync.requested`. The standalone `cmd/syncer` process is the consumer: it marks jobs `running`, executes Radio Browser ingestion, and marks jobs `completed` or `failed`. This keeps long-running crawls out of the HTTP request lifecycle while preserving the handler -> service -> repository boundary.
