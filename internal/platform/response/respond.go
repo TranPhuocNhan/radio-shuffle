@@ -33,8 +33,8 @@ func Paginated(c *gin.Context, httpStatus int, data any, page, limit int, total 
 
 // ErrBody mirrors the error object in failing responses.
 type ErrBody struct {
-	Code    string                 `json:"code"`
-	Message string                 `json:"message"`
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
 	Details map[string]any `json:"details,omitempty"`
 }
 
@@ -75,14 +75,10 @@ func Conflict(c *gin.Context, message string) {
 	Error(c, http.StatusConflict, ErrBody{Code: "CONFLICT", Message: message})
 }
 
-func Internal(c *gin.Context, err error) {
-	msg := "internal error"
-	if err != nil {
-		msg = err.Error()
-	}
+func Internal(c *gin.Context, _ error) {
 	Error(c, http.StatusInternalServerError, ErrBody{
 		Code:    "INTERNAL_ERROR",
-		Message: msg,
+		Message: "internal error",
 		Details: nil,
 	})
 }

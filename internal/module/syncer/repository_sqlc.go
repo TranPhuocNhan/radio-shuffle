@@ -24,7 +24,7 @@ func NewRepository(pool *pgxpool.Pool) Repository {
 func (r *sqlcRepository) UpsertBatch(ctx context.Context, stations []UpsertInput) (int64, error) {
 	var upserted int64
 	for _, s := range stations {
-		err := r.q.UpsertRadioBrowserStation(ctx, dbsqlc.UpsertRadioBrowserStationParams{
+		affected, err := r.q.UpsertRadioBrowserStation(ctx, dbsqlc.UpsertRadioBrowserStationParams{
 			Stationuuid: s.StationUUID,
 			Name:        s.Name,
 			Url:         s.URL,
@@ -44,7 +44,7 @@ func (r *sqlcRepository) UpsertBatch(ctx context.Context, stations []UpsertInput
 		if err != nil {
 			return upserted, fmt.Errorf("upsert station %s: %w", s.StationUUID, err)
 		}
-		upserted++
+		upserted += affected
 	}
 	return upserted, nil
 }
@@ -58,6 +58,17 @@ func (r *sqlcRepository) CreateSyncJob(ctx context.Context, in CreateSyncJobInpu
 	})
 }
 
+func (r *sqlcRepository) GetActiveSyncJob(ctx context.Context) (SyncJob, error) {
+	row, err := r.q.GetActiveSyncJob(ctx)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SyncJob{}, ErrRepoJobNotFound
+		}
+		return SyncJob{}, err
+	}
+	return syncJobFromDB(row), nil
+}
+
 func (r *sqlcRepository) GetSyncJob(ctx context.Context, requestID string) (SyncJob, error) {
 	row, err := r.q.GetSyncJobByID(ctx, requestID)
 	if err != nil {
@@ -66,6 +77,10 @@ func (r *sqlcRepository) GetSyncJob(ctx context.Context, requestID string) (Sync
 		}
 		return SyncJob{}, err
 	}
+	return syncJobFromDB(row), nil
+}
+
+func syncJobFromDB(row dbsqlc.SyncJobs) SyncJob {
 	var startedAt *time.Time
 	if row.StartedAt.Valid {
 		startedAt = &row.StartedAt.Time
@@ -83,7 +98,7 @@ func (r *sqlcRepository) GetSyncJob(ctx context.Context, requestID string) (Sync
 		StartedAt:    startedAt,
 		FinishedAt:   finishedAt,
 		CreatedAt:    row.CreatedAt.Time,
-	}, nil
+	}
 }
 
 func (r *sqlcRepository) MarkSyncJobRunning(ctx context.Context, requestID string) error {

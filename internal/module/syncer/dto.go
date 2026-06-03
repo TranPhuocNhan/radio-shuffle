@@ -33,4 +33,3 @@ func toSyncStatusResponse(job SyncJob) SyncStatusResponse {
 		CreatedAt:   job.CreatedAt,
 	}
 }
-

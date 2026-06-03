@@ -78,6 +78,27 @@ func TestHandler_Trigger_OK(t *testing.T) {
 	}
 }
 
+func TestHandler_Trigger_InProgress(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := stubJobService{
+		trigger: func(context.Context, string) (SyncJob, error) {
+			return SyncJob{}, ErrJobInProgress
+		},
+	}
+	h := NewHandler(svc)
+	r := gin.New()
+	r.Use(withUser(42))
+	r.POST("/syncer/trigger", httperr.Wrap(h.Trigger, MapError))
+
+	req := httptest.NewRequest(http.MethodPost, "/syncer/trigger", http.NoBody)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandler_Status_OK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	now := time.Now()

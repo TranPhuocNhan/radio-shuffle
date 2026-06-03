@@ -11,7 +11,8 @@ const fetchPageSize = 1000
 
 // SyncResult summarises the outcome of one sync run.
 type SyncResult struct {
-	Fetched  int
+	Fetched int
+	// Upserted is the number of rows inserted or changed in storage.
 	Upserted int64
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/syncer"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/track"
 	"github.com/tranphuocnhan/radio-shuffle/internal/module/user"
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/apidocs"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/config"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/database"
 	plhealth "github.com/tranphuocnhan/radio-shuffle/internal/platform/health"
@@ -53,9 +54,9 @@ func main() {
 		DLQ:           cfg.SyncDLQ,
 		RetryTTLMS:    cfg.SyncRetryTTLMS,
 		MaxRetries:    cfg.SyncMaxRetries,
-		MainRouteKey:  "sync.requested",
-		RetryRouteKey: "sync.requested.retry",
-		DLQRouteKey:   "sync.requested.dlq",
+		MainRouteKey:  mq.SyncRequestedRouteKey,
+		RetryRouteKey: mq.SyncRetryRouteKey,
+		DLQRouteKey:   mq.SyncDLQRouteKey,
 	})
 	if err != nil {
 		slog.Error("rabbitmq connect failed", "err", err)
@@ -79,6 +80,7 @@ func main() {
 	healthHandlers := plhealth.New(pool)
 	r.GET("/health", healthHandlers.Live)
 	r.GET("/ready", healthHandlers.Ready)
+	apidocs.RegisterRoutes(r)
 
 	api := r.Group("/api/v1")
 
@@ -118,7 +120,7 @@ func main() {
 	trackAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
 	trackModule := track.NewModule(trackHandler, trackAuthMw)
 	syncerRepo := syncer.NewRepository(pool)
-	syncerPublisher := syncer.NewPublisher(mqClient, "sync.requested")
+	syncerPublisher := syncer.NewPublisher(mqClient, mq.SyncRequestedRouteKey)
 	syncerJobSvc := syncer.NewJobService(syncerRepo, syncerPublisher)
 	syncerHandler := syncer.NewHandler(syncerJobSvc)
 	syncerAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)

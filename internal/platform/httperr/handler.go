@@ -2,8 +2,11 @@ package httperr
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 
+	"github.com/tranphuocnhan/radio-shuffle/internal/platform/mw"
 	"github.com/tranphuocnhan/radio-shuffle/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +52,7 @@ func Handle(c *gin.Context, err error, mappers ...Mapper) {
 
 	for _, mapper := range mappers {
 		if mapper != nil && mapper(c, err) {
+			logHTTPError(c, err, c.Writer.Status())
 			return
 		}
 	}
@@ -56,10 +60,12 @@ func Handle(c *gin.Context, err error, mappers ...Mapper) {
 	var httpErr *HTTPError
 	if errors.As(err, &httpErr) {
 		writeHTTPError(c, httpErr)
+		logHTTPError(c, err, httpErr.Status)
 		return
 	}
 
 	response.Internal(c, err)
+	logHTTPError(c, err, http.StatusInternalServerError)
 }
 
 func writeHTTPError(c *gin.Context, httpErr *HTTPError) {
@@ -80,4 +86,24 @@ func writeHTTPError(c *gin.Context, httpErr *HTTPError) {
 			Message: httpErr.Message,
 		})
 	}
+}
+
+func logHTTPError(c *gin.Context, err error, status int) {
+	attrs := mw.RequestLogAttrs(c,
+		"status", status,
+		"err", err,
+		"error_type", errorType(err),
+	)
+	if status >= http.StatusInternalServerError {
+		slog.Error("http_error", attrs...)
+		return
+	}
+	slog.Warn("http_error", attrs...)
+}
+
+func errorType(err error) string {
+	if err == nil {
+		return ""
+	}
+	return fmt.Sprintf("%T", err)
 }
