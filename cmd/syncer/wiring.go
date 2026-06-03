@@ -11,10 +11,7 @@ import (
 )
 
 const (
-	syncRequestedRouteKey = "sync.requested"
-	syncRetryRouteKey     = "sync.requested.retry"
-	syncDLQRouteKey       = "sync.requested.dlq"
-	syncerPrefetchCount   = 1
+	syncerPrefetchCount = 1
 )
 
 func newApp(ctx context.Context, cfg config.Config) (*app, func(), error) {
@@ -31,7 +28,7 @@ func newApp(ctx context.Context, cfg config.Config) (*app, func(), error) {
 
 	repo := syncer.NewRepository(pool)
 	rbClient := radiobrowser.NewClient(cfg.RadioBrowserBaseURL)
-	syncSvc := syncer.NewModule(syncer.NewService(repo, rbClient)).Service()
+	syncSvc := syncer.NewService(repo, rbClient)
 	processor := syncer.NewJobProcessor(repo, syncSvc)
 
 	cleanup := func() {
@@ -50,9 +47,9 @@ func syncerMQConfig(cfg config.Config) mq.Config {
 		DLQ:           cfg.SyncDLQ,
 		RetryTTLMS:    cfg.SyncRetryTTLMS,
 		MaxRetries:    cfg.SyncMaxRetries,
-		MainRouteKey:  syncRequestedRouteKey,
-		RetryRouteKey: syncRetryRouteKey,
-		DLQRouteKey:   syncDLQRouteKey,
+		MainRouteKey:  mq.SyncRequestedRouteKey,
+		RetryRouteKey: mq.SyncRetryRouteKey,
+		DLQRouteKey:   mq.SyncDLQRouteKey,
 		PrefetchCount: syncerPrefetchCount,
 	}
 }

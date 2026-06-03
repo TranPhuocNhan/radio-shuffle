@@ -54,9 +54,9 @@ func main() {
 		DLQ:           cfg.SyncDLQ,
 		RetryTTLMS:    cfg.SyncRetryTTLMS,
 		MaxRetries:    cfg.SyncMaxRetries,
-		MainRouteKey:  "sync.requested",
-		RetryRouteKey: "sync.requested.retry",
-		DLQRouteKey:   "sync.requested.dlq",
+		MainRouteKey:  mq.SyncRequestedRouteKey,
+		RetryRouteKey: mq.SyncRetryRouteKey,
+		DLQRouteKey:   mq.SyncDLQRouteKey,
 	})
 	if err != nil {
 		slog.Error("rabbitmq connect failed", "err", err)
@@ -120,7 +120,7 @@ func main() {
 	trackAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)
 	trackModule := track.NewModule(trackHandler, trackAuthMw)
 	syncerRepo := syncer.NewRepository(pool)
-	syncerPublisher := syncer.NewPublisher(mqClient, "sync.requested")
+	syncerPublisher := syncer.NewPublisher(mqClient, mq.SyncRequestedRouteKey)
 	syncerJobSvc := syncer.NewJobService(syncerRepo, syncerPublisher)
 	syncerHandler := syncer.NewHandler(syncerJobSvc)
 	syncerAuthMw := plmw.AuthRequired([]byte(cfg.JWTSigningKey), cfg.JWTIssuer)

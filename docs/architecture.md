@@ -190,9 +190,8 @@ infrastructure payloads. Do not put syncer business rules in `internal/platform/
 | `main.go` | Process entrypoint: logger setup, config load, signal context, app lifecycle |
 | `app.go` | Worker app and RabbitMQ consume loop |
 | `wiring.go` | Database, RabbitMQ, Radio Browser client, repository, service, and processor wiring |
-| `message_handler.go` | Decode `sync.requested`, invoke `JobProcessor`, decide ack/retry/DLQ outcomes |
-| `delivery.go` | Delivery metadata, headers, ack/nack helpers, retry/DLQ publish helpers |
-| `logging.go` | Syncer binary logging helpers |
+| `message_handler.go` | Decode `sync.requested`, invoke `JobProcessor`, decide ack/retry/DLQ outcomes, and keep delivery helper logic near the message flow |
+| `logging.go` | Syncer binary logger setup |
 
 ## Request Flow
 

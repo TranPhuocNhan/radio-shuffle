@@ -25,8 +25,8 @@ func (p *publisher) PublishSyncCommand(ctx context.Context, cmd SyncCommand) err
 		return err
 	}
 	headers := amqp091.Table{
-		"x-request-id":  cmd.RequestID,
-		"x-retry-count": int32(0),
+		mq.HeaderRequestID:  cmd.RequestID,
+		mq.HeaderRetryCount: int32(0),
 	}
 	slog.Info(
 		"rabbitmq publish sync requested",
